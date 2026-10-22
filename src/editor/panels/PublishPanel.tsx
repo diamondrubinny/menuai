@@ -13,6 +13,8 @@ import { saveMenu } from '../../core/storage';
 import { createEmptyMenu, createSampleMenu } from '../../core/sample';
 import { Fieldset, Toggle } from '../fields/Fields';
 import { useEditLocale } from '../EditLocalePicker';
+import { CloudSection } from '../CloudSection';
+import { cloud } from '../../store/cloudStore';
 
 const LARGE_EXPORT_MB = 8;
 
@@ -59,6 +61,7 @@ export function PublishPanel() {
     const result = parseMenuJson(await file.text());
     if (!result.ok) return notify(t('importFailed', { error: result.error }), 'error');
     if (!(await confirm(t('confirmReplace'), t('replace')))) return;
+    detachFromCloud();
     replace(result.menu);
     notify(t('importDone'), 'success');
   };
@@ -69,12 +72,23 @@ export function PublishPanel() {
     window.open(`${window.location.pathname}#/view?${query.toString()}`, '_blank', 'noopener');
   };
 
+  /** A different menu must not overwrite the linked cloud menu: start it as a local-only menu. */
+  const detachFromCloud = () => {
+    if (!cloud.store.getState().link) return;
+    cloud.detach();
+    notify(t('cloudDetached'), 'info');
+  };
+
   const replaceWith = async (factory: () => typeof menu) => {
-    if (await confirm(t('confirmReplace'), t('replace'))) replace(factory());
+    if (!(await confirm(t('confirmReplace'), t('replace')))) return;
+    detachFromCloud();
+    replace(factory());
   };
 
   return (
     <div className="panel-stack">
+      <CloudSection />
+
       <Fieldset legend={t('exportHtml')}>
         <p className="hint">{t('exportHtmlHint')}</p>
         <Toggle label={t('embedFonts')} checked={embedFonts} onChange={setEmbedFonts} />

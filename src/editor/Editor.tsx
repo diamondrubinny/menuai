@@ -14,6 +14,8 @@ import { LanguagesPanel } from './panels/LanguagesPanel';
 import { PublishPanel } from './panels/PublishPanel';
 import { DevicePreview, PreviewToolbar } from './DevicePreview';
 import { SiteFooter } from '../pages/SiteFooter';
+import { CloudConflict, CloudStatus, useCloudInit } from './CloudSection';
+import { useCloud } from '../store/cloudStore';
 
 const TABS: { id: Tab; key: 'tabContent' | 'tabDesign' | 'tabLanguages' | 'tabPublish' }[] = [
   { id: 'content', key: 'tabContent' },
@@ -42,6 +44,8 @@ export function Editor() {
   const setUiLang = useUiLang((s) => s.setLang);
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const panelRef = useRef<HTMLElement>(null);
+  const linked = useCloud((s) => s.link !== null);
+  useCloudInit();
 
   // Global undo / redo (text fields keep their native undo).
   useEffect(() => {
@@ -98,9 +102,13 @@ export function Editor() {
           </span>
         </div>
         <div className="topbar-actions">
-          <span className="save-status" aria-live="polite">
-            {saveStatus?.ok ? `✓ ${t('saved')}` : ''}
-          </span>
+          {linked ? (
+            <CloudStatus />
+          ) : (
+            <span className="save-status" aria-live="polite">
+              {saveStatus?.ok ? `✓ ${t('saved')}` : ''}
+            </span>
+          )}
           <button type="button" className="icon-btn" onClick={undo} disabled={!canUndo} aria-label={t('undo')} title={`${t('undo')} (Ctrl+Z)`}>↶</button>
           <button type="button" className="icon-btn" onClick={redo} disabled={!canRedo} aria-label={t('redo')} title={`${t('redo')} (Ctrl+Shift+Z)`}>↷</button>
           <label className="inline-select">
@@ -114,6 +122,7 @@ export function Editor() {
 
       <div className="workspace">
         <aside className="sidebar" id="editor-panel" ref={panelRef} tabIndex={-1} aria-label={t('editorPanels')}>
+          <CloudConflict />
           <div className="tabs" role="tablist" aria-label={t('editorPanels')}>
             {TABS.map((item, index) => (
               <button

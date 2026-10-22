@@ -49,4 +49,24 @@ describe.skipIf(!url)('node-postgres client (real PostgreSQL)', () => {
     ).rejects.toThrow('abort');
     expect(await db.query("SELECT 1 FROM users WHERE email = 'rollback@example.com'")).toHaveLength(0);
   });
+
+  it('lets exactly one of many truly concurrent draft saves of the same version win', async () => {
+    const [menu] = await db.query<{ id: string }>(
+      "INSERT INTO menus (slug, draft) VALUES ('race-' || substr(md5(random()::text), 1, 8), '{}'::jsonb) RETURNING id",
+    );
+    // Same statement as PUT /api/menus/:id, on separate pooled connections at once.
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        db.query(
+          `UPDATE menus SET draft = $3, draft_version = draft_version + 1, updated_at = now()
+           WHERE id = $1 AND draft_version = $2 RETURNING draft_version`,
+          [menu!.id, 1, JSON.stringify({ writer: i })],
+        ),
+      ),
+    );
+    expect(results.filter((r) => r.length === 1)).toHaveLength(1);
+    const [row] = await db.query<{ draft_version: number }>('SELECT draft_version FROM menus WHERE id = $1', [menu!.id]);
+    expect(row!.draft_version).toBe(2);
+    await db.query('DELETE FROM menus WHERE id = $1', [menu!.id]);
+  });
 });

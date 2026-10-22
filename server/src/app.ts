@@ -14,6 +14,7 @@ import { forbidden, HttpError } from './errors';
 import type { Mailer } from './mail/mailer';
 import { authRoutes } from './auth/routes';
 import { userRoutes } from './users/routes';
+import { menuRoutes } from './menus/routes';
 
 export interface AppDeps {
   config: Config;
@@ -72,6 +73,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     errorResponseBuilder: () => ({ statusCode: 429, error: 'rate_limited' }),
   });
   await app.register(cookie);
+  // Responses carry private data (menus, users): never store them in browser or proxy caches.
+  app.addHook('onSend', async (_req, reply) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+  });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) return reply.status(err.statusCode).send({ error: err.code });
@@ -96,6 +101,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(authRoutes);
   await app.register(userRoutes);
+  await app.register(menuRoutes);
 
   app.get('/api/health', async (_req, reply) => {
     try {

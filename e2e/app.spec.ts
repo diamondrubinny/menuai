@@ -151,3 +151,14 @@ test('a login link removes its token from the address bar even when it fails', a
   await expect(page.getByRole('main').getByRole('status')).not.toBeEmpty();
   expect(page.url()).not.toContain('token=');
 });
+
+test('cloud section falls back to local mode when no server is installed', async ({ page }) => {
+  await page.goto('/');
+  await openTab(page, /Publish/);
+  const cloud = page.locator('.cloud-section');
+  await expect(cloud).toContainText('Cloud saving needs the MenuAI server');
+  // No sync indicator: the menu is local-only, saved in the browser as before.
+  await expect(page.locator('.sync-chip')).toHaveCount(0);
+  const results = await new AxeBuilder({ page }).include('.cloud-section').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+});

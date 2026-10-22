@@ -106,15 +106,26 @@ export function PrivacyPage() {
         <p>עודכן לאחרונה: {UPDATED}</p>
         <h2>בקצרה</h2>
         <p>
-          העורך של MenuAI פועל כולו בדפדפן שלכם. אין לנו שרת שאוסף נתונים, ואיננו משתמשים בעוגיות, בכלי מדידה, בפיקסלים או בשירותי צד שלישי.
+          העורך של MenuAI פועל בדפדפן שלכם. בלי חשבון — שום מידע לא יוצא מהמכשיר. אין עוגיות שיווק, כלי מדידה, פיקסלים או שירותי צד שלישי.
         </p>
         <h2>אילו נתונים נשמרים ואיפה</h2>
         <ul>
           <li><strong>טיוטת התפריט</strong> (טקסטים, מחירים, תמונות שהעליתם, הגדרות עיצוב) — נשמרת רק בדפדפן שלכם (localStorage), כדי שלא תאבד בין ביקור לביקור. היא נמחקת כשמנקים את נתוני האתר בדפדפן.</li>
           <li><strong>העדפת שפת ממשק</strong> — נשמרת ב־localStorage.</li>
-          <li>תמונות שאתם מעלים מעובדות במכשיר עצמו (הקטנה והסרת נתוני EXIF, כמו מיקום GPS), ואינן נשלחות לשום שרת.</li>
+          <li>תמונות שאתם מעלים מעובדות במכשיר עצמו (הקטנה והסרת נתוני EXIF, כמו מיקום GPS), ונשלחות לשרת רק אם שומרים את התפריט בענן (ראו בהמשך).</li>
           <li>הגופנים נטענים מהאתר עצמו (self-hosted), ולא נשלחת שום בקשה ל־Google Fonts.</li>
         </ul>
+        <h2>אם האתר מפעיל את שרת MenuAI (כניסה ושמירה בענן)</h2>
+        <p>
+          השרת אופציונלי, ומותקן ומופעל על ידי העסק שמפעיל את האתר הזה — לא על ידי מפתחי MenuAI. אם נכנסתם לחשבון:
+        </p>
+        <ul>
+          <li><strong>חשבון:</strong> כתובת אימייל, שם ותפקיד (בעלים / עורך / צפייה), לצורך כניסה והרשאות. קישורי הכניסה וההזמנה נשלחים דרך ספק האימייל שהעסק הגדיר.</li>
+          <li><strong>עוגיית סשן אחת</strong> (חיונית, HttpOnly) לשמירת הכניסה, עד 30 יום או עד היציאה. אין עוגיות אחרות.</li>
+          <li><strong>תפריטים בענן:</strong> כשבוחרים „שמירה בענן”, תוכן התפריט (כולל תמונות שהעליתם) נשמר בשרת, יחד עם זהות המשתמש שעדכן אותו לאחרונה ומועד העדכון.</li>
+          <li><strong>יומן אבטחה</strong> של פעולות רגישות (כניסות, הזמנות, יצירה ומחיקה של תפריטים), ללא תוכן התפריט.</li>
+        </ul>
+        <p>לבקשות גישה, תיקון או מחיקה של מידע שבשרת — פנו לבעלים של העסק שמפעיל את האתר.</p>
         <h2>תפריטים שאתם מפרסמים</h2>
         <p>
           קובץ ה־HTML המיוצא אינו כולל עוגיות או כלי מעקב. אם תשתמשו בקישורים לתמונות חיצוניות (https), הדפדפן של האורח יפנה לשרת שבו התמונה מאוחסנת, והשרת עשוי לראות את כתובת ה־IP של האורח.
@@ -131,14 +142,23 @@ export function PrivacyPage() {
       <h1>Privacy policy</h1>
       <p>Last updated: {UPDATED}</p>
       <h2>In short</h2>
-      <p>The MenuAI editor runs entirely in your browser. We run no data-collecting server and use no cookies, analytics, pixels or third-party services.</p>
+      <p>The MenuAI editor runs in your browser. Without an account, no data leaves your device. There are no marketing cookies, analytics, pixels or third-party services.</p>
       <h2>What is stored, and where</h2>
       <ul>
         <li><strong>Your menu draft</strong> (texts, prices, uploaded images, design settings) — stored only in your browser’s localStorage so it survives between visits. Clearing site data removes it.</li>
         <li><strong>Interface language preference</strong> — stored in localStorage.</li>
-        <li>Uploaded images are processed locally (resized, EXIF data such as GPS location removed) and never sent to a server.</li>
+        <li>Uploaded images are processed locally (resized, EXIF data such as GPS location removed) and are sent to a server only if you save the menu to the cloud (see below).</li>
         <li>Fonts are self-hosted — no request is made to Google Fonts.</li>
       </ul>
+      <h2>If this site runs the MenuAI server (sign-in and cloud saving)</h2>
+      <p>The server is optional and is installed and operated by the business running this site — not by the MenuAI developers. If you sign in:</p>
+      <ul>
+        <li><strong>Account:</strong> email address, name and role (owner / editor / viewer), used for sign-in and permissions. Sign-in and invitation links are sent through the email provider the business configured.</li>
+        <li><strong>One session cookie</strong> (essential, HttpOnly) keeps you signed in for up to 30 days or until you sign out. No other cookies.</li>
+        <li><strong>Cloud menus:</strong> when you choose “Save to cloud”, the menu content (including uploaded images) is stored on the server, together with who last updated it and when.</li>
+        <li><strong>A security log</strong> of sensitive actions (sign-ins, invitations, creating and deleting menus), without menu content.</li>
+      </ul>
+      <p>For access, correction or deletion of data on the server, contact the owner of the business that runs this site.</p>
       <h2>Menus you publish</h2>
       <p>
         The exported HTML file contains no cookies or trackers. If you use external image links (https), guests’ browsers will contact the server hosting those images, which may see their IP address.

@@ -38,7 +38,7 @@ Requirements: Node.js ≥ 20. No environment variables or secrets are needed (se
 
 ## Server (Phase 2 — in progress)
 
-Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Done so far: 2a infrastructure (Fastify API, PostgreSQL migrations, hardened headers, rate limiting, safe logging, Docker Compose) and 2b accounts (magic-link sign-in, sessions, owner/editor/viewer roles, CLI).
+Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Done so far: 2a infrastructure (Fastify API, PostgreSQL migrations, hardened headers, rate limiting, safe logging, Docker Compose), 2b accounts (magic-link sign-in, sessions, owner/editor/viewer roles, CLI) and 2c cloud sync ([`docs/PHASE2C.md`](docs/PHASE2C.md)): **Publish → Cloud** saves the local menu to the server in one click, then every edit autosaves; open the same menu on any device; optimistic locking (`If-Match` → 409) means two devices never overwrite each other silently — you choose which version to keep.
 
 ```bash
 cp .env.example .env          # fill in PUBLIC_URL and POSTGRES_PASSWORD
@@ -50,6 +50,8 @@ docker compose exec api node dist-server/cli.mjs create-owner you@example.com "Y
 # Later, a fresh sign-in link for any active user:
 docker compose exec api node dist-server/cli.mjs login-link you@example.com
 ```
+
+If you put your own reverse proxy in front of the API, allow request bodies up to 12 MB on `/api/menus` (e.g. nginx `client_max_body_size 12m;`) — menus can embed images until server uploads land (Phase 2e).
 
 Sign-in is passwordless: a one-time link (15 minutes) is emailed via any SMTP provider (`SMTP_URL` in `.env`). Team roles: **owner** (manages users), **editor**, **viewer** — invitations come from the owner; there is no public sign-up.
 
@@ -105,7 +107,7 @@ Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/
 ## Security, privacy & accessibility
 
 - Security model and reporting: [`SECURITY.md`](SECURITY.md).
-- Privacy: everything stays in the user's browser; no cookies, analytics or third parties → no consent banner needed for the editor in its current form. Drafts: in-app `#/privacy`, [`docs/legal/`](docs/legal/). **Legal review required before commercial use.**
+- Privacy: without the server, everything stays in the user's browser. With the optional server, accounts (email, name, role), cloud menus and a security log are stored on *your* server, with one essential HttpOnly session cookie; there are no analytics or third-party trackers, so no consent banner is needed in the current form (data map: [`docs/PHASE2.md`](docs/PHASE2.md) §9). Drafts: in-app `#/privacy`, [`docs/legal/`](docs/legal/). **Legal review required before commercial use.**
 - Accessibility target: WCAG 2.1 AA / IS 5568, verified by axe in CI on the editor, every theme and the exported file. Statement draft: in-app `#/accessibility`. Automated tests do not replace manual screen-reader testing.
 
 ## Attribution
