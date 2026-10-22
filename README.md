@@ -43,6 +43,11 @@ Requirements: Node.js ≥ 20. No environment variables or secrets are needed (se
 - **Netlify / Cloudflare Pages:** build command `npm run build`, output `dist`. `public/_headers` adds HSTS, CSP, `X-Frame-Options`, `Permissions-Policy`, etc.
 - **GitHub Pages / nginx / Apache:** upload `dist/` and configure equivalent headers (see `public/_headers`).
 - The build also injects a `<meta>` CSP into `index.html`.
+- **Your own server (Debian/Ubuntu + nginx) over SSH** — installs Node 22, nginx, builds, publishes to `/var/www/menuai`, writes a hardened nginx site, and optionally enables HTTPS. Re-run the same command to update:
+
+  ```bash
+  ssh user@your-server 'curl -fsSL https://raw.githubusercontent.com/diamondrubinny/menuai/main/scripts/deploy-nginx.sh | sudo DOMAIN=menu.example.com EMAIL=you@example.com bash'
+  ```
 
 ## Publishing a menu
 
