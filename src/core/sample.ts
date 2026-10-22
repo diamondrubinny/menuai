@@ -36,7 +36,7 @@ export function createSampleMenu(): Menu {
         [
           item(
             { he: 'פוקאצ׳ה מהטאבון', en: 'Taboon focaccia', ar: 'فوكاتشيا من الطابون' },
-            { he: 'שמן זית כתית, מלח ים, עגבניות שרי צלויות', en: 'Extra virgin olive oil, sea salt, roasted cherry tomatoes', ar: 'زيت زيتون بكر، ملح بحر، طماطم كرزية مشوية' },
+            { he: 'שמן זית כתית מעולה, מלח ים, עגבניות שרי צלויות', en: 'Extra virgin olive oil, sea salt, roasted cherry tomatoes', ar: 'زيت زيتون بكر، ملح بحر، طماطم كرزية مشوية' },
             32, { tags: ['vegan'], allergens: ['gluten'] },
           ),
           item(
@@ -57,7 +57,7 @@ export function createSampleMenu(): Menu {
         [
           item(
             { he: 'פילה לברק', en: 'Sea bass fillet', ar: 'فيليه سمك القاروص' },
-            { he: 'חמאת עשבי תיבול, פירה סלרי, אספרגוס', en: 'Herb butter, celery root purée, asparagus', ar: 'زبدة الأعشاب، بوريه الكرفس، هليون' },
+            { he: 'חמאת עשבי תיבול, פירה שורש סלרי, אספרגוס', en: 'Herb butter, celery root purée, asparagus', ar: 'زبدة الأعشاب، بوريه الكرفس، هليون' },
             128, { allergens: ['fish', 'milk', 'celery'] },
           ),
           item(
@@ -66,7 +66,7 @@ export function createSampleMenu(): Menu {
             92, { tags: ['vegetarian', 'new'], allergens: ['milk'] },
           ),
           item(
-            { he: 'נתח אנטריקוט', en: 'Rib-eye steak', ar: 'ستيك ريب آي' },
+            { he: 'סטייק אנטריקוט', en: 'Rib-eye steak', ar: 'ستيك ريب آي' },
             { he: 'צלוי על גחלים, צ׳ימיצ׳ורי, תפוחי אדמה פריכים', en: 'Charcoal grilled, chimichurri, crispy potatoes', ar: 'مشوي على الفحم، تشيميتشوري، بطاطا مقرمشة' },
             0, {
               price: undefined,
@@ -90,7 +90,7 @@ export function createSampleMenu(): Menu {
           ),
           item(
             { he: 'טארט שוקולד מריר', en: 'Dark chocolate tart', ar: 'تارت الشوكولاتة الداكنة' },
-            { he: '70% קקאו, מלח פלור דה סל, גלידת חלב', en: '70% cacao, fleur de sel, milk ice cream', ar: '70% كاكاو، ملح فلور دو سيل، آيس كريم بالحليب' },
+            { he: '70% קקאו, מלח פלר דה סל, גלידת חלב', en: '70% cacao, fleur de sel, milk ice cream', ar: '70% كاكاو، ملح فلور دو سيل، آيس كريم بالحليب' },
             52, { tags: ['popular'], allergens: ['gluten', 'milk', 'eggs'], soldOut: true },
           ),
         ],
@@ -100,8 +100,8 @@ export function createSampleMenu(): Menu {
         {},
         [
           item(
-            { he: 'לימונדה נענע', en: 'Mint lemonade', ar: 'ليموناضة بالنعناع' },
-            { he: 'סחוטה במקום', en: 'Freshly squeezed', ar: 'معصورة طازجة' },
+            { he: 'לימונענע', en: 'Mint lemonade', ar: 'ليموناضة بالنعناع' },
+            { he: 'לימונים סחוטים במקום ונענע טרייה', en: 'Freshly squeezed', ar: 'معصورة طازجة' },
             22, { tags: ['vegan'] },
           ),
           item(

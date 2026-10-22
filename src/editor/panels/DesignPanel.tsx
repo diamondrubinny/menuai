@@ -28,11 +28,20 @@ export function DesignPanel() {
                 <span
                   className="theme-swatch"
                   aria-hidden="true"
-                  style={{ background: p.bg, color: p.text, borderRadius: Math.min(theme.radius, 12), fontFamily: `"${FONTS[theme.fontDisplay].family}", "${FONTS.heebo.family}", serif` }}
+                  style={{ background: p.bg, color: p.text, borderRadius: Math.min(theme.radius, 12) }}
                 >
-                  <span className="theme-swatch-title" style={{ color: p.accent }}>Aa אב</span>
+                  <span className="theme-swatch-title" style={{ color: p.accent, fontFamily: `"${FONTS[theme.fontDisplay].family}", "${FONTS.heebo.family}", serif` }}>
+                    Aa אב
+                  </span>
+                  {[0.7, 0.5].map((w, i) => (
+                    <span key={i} className="theme-swatch-row">
+                      <i style={{ background: p.text, width: `${w * 100}%` }} />
+                      <b style={{ borderColor: p.muted }} />
+                      <i style={{ background: p.accent, width: '14%' }} />
+                    </span>
+                  ))}
                   <span className="theme-swatch-dots">
-                    {[p.surface, p.text, p.accent, p.accent2].map((c, i) => <i key={i} style={{ background: c }} />)}
+                    {[p.surface, p.accent2].map((c, i) => <i key={i} style={{ background: c }} />)}
                   </span>
                 </span>
                 <span className="theme-name">{themeName(id)}</span>

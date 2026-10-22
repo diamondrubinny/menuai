@@ -88,7 +88,7 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
     return (
       <li
         key={item.id}
-        className={`ma-item ma-reveal${item.soldOut ? ' ma-soldout' : ''}${showImage ? ' ma-has-image' : ''}`}
+        className={`ma-item ma-reveal${item.soldOut ? ' ma-soldout' : ''}${showImage ? ' ma-has-image' : ''}${item.tags.includes('chefPick') ? ' ma-featured' : ''}`}
         style={{ '--ma-i': Math.min(index, 8) } as CSSProperties}
       >
         <div className="ma-item-inner">
@@ -204,11 +204,11 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
                 </div>
               )}
               {hasMotion && (
-                <button type="button" className="ma-motion-toggle" aria-pressed="false" data-ma-motion-toggle="">
+                <button type="button" className="ma-motion-toggle" aria-pressed="false" data-ma-motion-toggle="" title={lb('reduceMotion')}>
                   <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
                     <path d="M9 7v10M15 7v10" />
                   </svg>
-                  <span>{lb('reduceMotion')}</span>
+                  <span className="ma-sr">{lb('reduceMotion')}</span>
                 </button>
               )}
             </div>

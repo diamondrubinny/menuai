@@ -494,13 +494,16 @@ input[aria-invalid='true'] { border-color: var(--danger); }
   position: relative;
   display: grid;
   align-content: space-between;
-  height: 76px;
+  height: 96px;
   padding: 0.55rem 0.6rem;
   border: 2px solid var(--border);
   transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
-.theme-swatch-title { font-size: 1.35rem; line-height: 1; font-weight: 700; }
-.theme-swatch-dots { display: flex; gap: 4px; }
+.theme-swatch-title { font-size: 1.3rem; line-height: 1; font-weight: 700; }
+.theme-swatch-row { display: flex; align-items: center; gap: 4px; direction: rtl; }
+.theme-swatch-row i { display: block; height: 4px; border-radius: 2px; opacity: 0.85; }
+.theme-swatch-row b { flex: 1; border-bottom: 1px dotted; opacity: 0.7; }
+.theme-swatch-dots { display: flex; gap: 4px; justify-content: flex-end; }
 .theme-swatch-dots i { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 1px rgb(128 128 128 / 0.35); }
 .theme-name { font-size: 0.8rem; font-weight: 600; text-align: center; }
 .theme-card:hover .theme-swatch { transform: translateY(-2px); }
