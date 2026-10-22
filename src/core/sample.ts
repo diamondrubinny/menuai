@@ -36,7 +36,7 @@ export function createSampleMenu(): Menu {
     },
     sections: [
       section(
-        { he: 'פתיחים', en: 'Starters', ar: 'مقبلات' },
+        { he: 'ראשונות', en: 'Starters', ar: 'مقبلات' },
         { he: 'לחלוק, לטעום, להתחיל לאט', en: 'To share, to taste, to begin slowly', ar: 'للمشاركة والتذوق والبداية على مهل' },
         [
           item(
