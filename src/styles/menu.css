@@ -113,7 +113,28 @@
   margin-top: 0.8em;
 }
 
-.ma-langs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35em; }
+.ma-sr {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+
+/* Languages: one connected pill control */
+.ma-langs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  border: 1px solid var(--ma-line);
+  background: color-mix(in srgb, var(--ma-surface) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.ma-langs .ma-lang { border-color: transparent; background: transparent; }
 
 .ma-lang,
 .ma-motion-toggle {
@@ -141,7 +162,14 @@
 }
 .ma-lang:hover,
 .ma-motion-toggle:hover { border-color: var(--ma-accent); }
-.ma-motion-toggle { font-size: 0.8em; color: var(--ma-muted); }
+.ma-motion-toggle {
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 1em;
+  color: var(--ma-muted);
+}
 .ma-motion-toggle[aria-pressed='true'] { color: var(--ma-text); border-color: var(--ma-accent); }
 
 /* ---------- Sticky section nav ---------- */
@@ -345,6 +373,27 @@
   padding: 3em 1em;
   border: 2px dashed var(--ma-line);
   border-radius: var(--ma-radius);
+}
+
+/* Chef's pick: a quiet accent, never just color (the badge carries the text). */
+.ma-surface-flat:not(.fx-glass) .ma-featured .ma-item-inner {
+  border-inline-start: 2px solid var(--ma-accent);
+  padding-inline-start: 0.9em;
+}
+.ma-featured .ma-item-inner {
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ma-accent) 55%, transparent), var(--ma-shadow);
+}
+.ma-surface-flat:not(.fx-glass) .ma-featured .ma-item-inner { box-shadow: none; }
+
+/* Hover feedback on flat lists (pointer devices only, no layout shift). */
+@media (hover: hover) {
+  .ma-surface-flat:not(.fx-glass) .ma-item-inner {
+    margin: -0.45em -0.6em;
+    padding: 0.45em 0.6em;
+    transition: background-color 0.25s;
+  }
+  .ma-surface-flat:not(.fx-glass) .ma-featured .ma-item-inner { padding-inline-start: 0.9em; }
+  .ma-surface-flat:not(.fx-glass) .ma-item-inner:hover { background: var(--ma-soft); }
 }
 
 /* ---------- Footer ---------- */
@@ -641,10 +690,22 @@
 .ma-theme-aurora-glass .ma-section-title { color: var(--ma-text); }
 
 .ma-theme-nordic-minimal .ma-title { font-size: clamp(2.6em, 11cqi, 7em); letter-spacing: -0.04em; }
-.ma-theme-nordic-minimal .ma-section-title::before,
 .ma-theme-nordic-minimal .ma-section-title::after { display: none; }
 .ma-theme-nordic-minimal .ma-section-head { text-align: start; border-bottom: 2px solid var(--ma-text); padding-bottom: 0.4em; }
-.ma-theme-nordic-minimal .ma-section-title { justify-content: flex-start; color: var(--ma-text); }
+.ma-theme-nordic-minimal .ma-section-title { justify-content: flex-start; color: var(--ma-text); align-items: baseline; }
+.ma-theme-nordic-minimal .ma-sections { counter-reset: ma-sec; }
+.ma-theme-nordic-minimal .ma-section { counter-increment: ma-sec; }
+.ma-theme-nordic-minimal .ma-section-title::before {
+  content: counter(ma-sec, decimal-leading-zero);
+  display: block;
+  flex: none;
+  height: auto;
+  background: none;
+  font-size: 0.42em;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: var(--ma-muted);
+}
 .ma-theme-nordic-minimal .ma-header { text-align: start; }
 .ma-theme-nordic-minimal .ma-header-inner { align-items: flex-start; max-width: 72em; }
 

@@ -68,7 +68,7 @@ function SectionEditor({ section, index, total, locale, fallbackLocale }: {
       initialOpen={index === 0 || !tx(section.title, locale, fallbackLocale)}
       summary={<>
         <span className="summary-title">{name}</span>
-        <span className="summary-meta">{t('itemsCount', { count: section.items.length })}{section.hidden ? ` · ${t('hidden')}` : ''}</span>
+        <span className="summary-meta">{(section.items.length === 1 ? t('itemsCountOne') : t('itemsCount', { count: section.items.length }))}{section.hidden ? ` · ${t('hidden')}` : ''}</span>
       </>}
     >
       {() => (<>
