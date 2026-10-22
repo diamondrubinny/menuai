@@ -774,6 +774,253 @@
 .ma-theme-garden-brunch .ma-title { font-style: italic; }
 
 /* ==========================================================================
+   Design 2.0 — hero styles, section banners, patterns, new effects
+   ========================================================================== */
+
+/* ---------- Hero: title over a full-bleed cover image ---------- */
+.ma-hero-overlay .ma-header {
+  display: grid;
+  min-height: clamp(380px, 64cqi, 720px);
+  padding: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ma-hero-overlay .ma-hero {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  margin: 0;
+  height: auto;
+}
+.ma-hero-overlay .ma-hero img { height: 100%; }
+.ma-hero-overlay .ma-hero::after {
+  /* Dark scrim keeps white text readable on any photo; only the last strip fades into the page. */
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.35) 0%, rgb(0 0 0 / 0.55) 55%, rgb(0 0 0 / 0.72) 88%, var(--ma-bg) 100%);
+}
+.ma-hero-overlay .ma-header-inner {
+  align-self: end;
+  padding: calc(var(--ma-pad) * 2) var(--ma-pad) calc(var(--ma-pad) * 1.6);
+}
+.ma-hero-overlay .ma-title { color: #fff; text-shadow: 0 2px 30px rgb(0 0 0 / 0.45); }
+.ma-hero-overlay .ma-subtitle { color: rgb(255 255 255 / 0.9); }
+.ma-hero-overlay .ma-ornament { color: #fff; opacity: 0.85; }
+/* Gradient-text titles stay gradient (they read well on the dark scrim). */
+.ma-hero-overlay.fx-shimmer .ma-title,
+.ma-hero-overlay.ma-theme-aurora-glass .ma-title,
+.ma-hero-overlay.ma-theme-sunset .ma-title { color: transparent; text-shadow: none; }
+
+/* ---------- Hero: image beside the title ---------- */
+.ma-hero-split .ma-hero {
+  margin: 0 0 1.4em;
+  height: clamp(200px, 56cqi, 360px);
+  border-radius: var(--ma-radius);
+  box-shadow: var(--ma-shadow);
+}
+.ma-hero-split .ma-hero::after { display: none; }
+.ma-hero-split .ma-hero img { height: 100%; }
+
+@container ma (min-width: 760px) {
+  .ma-hero-split .ma-header {
+    display: grid;
+    grid-template-columns: 1fr 1.05fr;
+    align-items: center;
+    gap: calc(var(--ma-pad) * 1.2);
+    max-width: 80em;
+    margin-inline: auto;
+    padding: calc(var(--ma-pad) * 1.4) var(--ma-pad);
+    text-align: start;
+  }
+  .ma-hero-split .ma-hero { margin: 0; height: auto; aspect-ratio: 4 / 5; max-height: 600px; }
+  .ma-hero-split .ma-header-inner { align-items: flex-start; margin: 0; }
+  .ma-hero-split .ma-toolbar { justify-content: flex-start; }
+  .ma-hero-split .ma-title { font-size: calc(clamp(2.6em, 7cqi, 5.4em) * var(--ma-display-size)); }
+}
+
+/* ---------- Section banners ---------- */
+.ma-section-cover {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border-radius: var(--ma-radius);
+  margin-bottom: calc(var(--ma-gap) * 1.6);
+  box-shadow: var(--ma-shadow);
+  isolation: isolate;
+}
+.ma-section-banner { grid-area: 1 / 1; margin: 0; min-width: 0; height: clamp(170px, 34cqi, 360px); }
+.ma-section-banner img { width: 100%; height: 100%; object-fit: cover; }
+/* Extra .ma-menu raises specificity above theme section-head styles. */
+.ma-menu .ma-section-cover .ma-section-head {
+  grid-area: 1 / 1;
+  align-self: end;
+  z-index: 1;
+  margin: 0;
+  padding: 3em var(--ma-pad) 1.1em;
+  border: 0;
+  background: linear-gradient(to bottom, transparent, rgb(0 0 0 / 0.55) 35%, rgb(0 0 0 / 0.8));
+  --ma-line: rgb(255 255 255 / 0.5);
+}
+.ma-menu .ma-section-cover .ma-section-title { color: #fff; text-shadow: 0 2px 16px rgb(0 0 0 / 0.6); }
+.ma-menu .ma-section-cover .ma-section-title > span { background: none; }
+.ma-menu .ma-section-cover .ma-section-desc { color: rgb(255 255 255 / 0.92); }
+
+/* ---------- Background patterns (pure CSS, tinted with the theme accent) ---------- */
+.ma-pattern {
+  --c: color-mix(in srgb, var(--ma-accent) 16%, transparent);
+  --c2: color-mix(in srgb, var(--ma-accent2) 16%, transparent);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(#000, rgb(0 0 0 / 0.35));
+  mask-image: linear-gradient(#000, rgb(0 0 0 / 0.35));
+}
+.ma-pattern-dots { background: radial-gradient(var(--c) 1.3px, transparent 1.7px) 0 0 / 22px 22px; }
+.ma-pattern-grid {
+  background:
+    linear-gradient(var(--c) 1px, transparent 1px) 0 0 / 34px 34px,
+    linear-gradient(90deg, var(--c) 1px, transparent 1px) 0 0 / 34px 34px;
+}
+.ma-pattern-stripes { background: repeating-linear-gradient(135deg, var(--c) 0 2px, transparent 2px 16px); }
+.ma-pattern-waves {
+  background:
+    radial-gradient(circle at 50% 100%, transparent 13px, var(--c) 14px 15.5px, transparent 16.5px) 0 0 / 40px 20px,
+    radial-gradient(circle at 50% 0%, transparent 13px, var(--c) 14px 15.5px, transparent 16.5px) 20px 20px / 40px 20px;
+}
+.ma-pattern-arabesque {
+  background:
+    radial-gradient(circle, transparent 37%, var(--c) 38% 40.5%, transparent 41.5%) 0 0 / 52px 52px,
+    radial-gradient(circle, transparent 37%, var(--c) 38% 40.5%, transparent 41.5%) 26px 26px / 52px 52px,
+    radial-gradient(var(--c2) 2px, transparent 2.5px) 13px 13px / 26px 26px;
+}
+.ma-pattern-terrazzo {
+  background:
+    radial-gradient(ellipse 6px 4px at 12% 18%, var(--c) 98%, transparent) 0 0 / 180px 180px,
+    radial-gradient(ellipse 4px 7px at 62% 32%, var(--c2) 98%, transparent) 0 0 / 180px 180px,
+    radial-gradient(ellipse 8px 5px at 34% 70%, var(--c2) 98%, transparent) 0 0 / 180px 180px,
+    radial-gradient(ellipse 3px 3px at 82% 76%, var(--c) 98%, transparent) 0 0 / 180px 180px,
+    radial-gradient(ellipse 5px 3px at 48% 48%, color-mix(in srgb, var(--ma-muted) 22%, transparent) 98%, transparent) 0 0 / 180px 180px,
+    radial-gradient(ellipse 7px 4px at 88% 12%, color-mix(in srgb, var(--ma-muted) 18%, transparent) 98%, transparent) 0 0 / 180px 180px;
+}
+
+/* ---------- Bokeh: drifting out-of-focus lights ---------- */
+.ma-bokeh { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.ma-bokeh span {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--ma-accent) 50%, transparent) 0%, transparent 68%);
+  opacity: 0.55;
+  animation: ma-float 16s ease-in-out infinite alternate;
+}
+.ma-bokeh span:nth-child(even) {
+  background: radial-gradient(circle, color-mix(in srgb, var(--ma-accent2) 45%, transparent) 0%, transparent 68%);
+  animation-duration: 22s;
+}
+@keyframes ma-float {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(3cqi, -7cqi, 0) scale(1.18); }
+}
+
+/* ---------- Spotlight following the pointer (position set by runtime) ---------- */
+.ma-spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(520px circle at var(--ma-sx, 50%) var(--ma-sy, -10%), color-mix(in srgb, var(--ma-accent) 18%, transparent), transparent 62%);
+  transition: background-position 0.2s;
+}
+@media (hover: none) { .ma-spotlight { display: none; } }
+
+/* ---------- Rotating gradient border on cards ---------- */
+@property --ma-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.fx-gradientBorder:is(.ma-surface-card, .ma-surface-glass, .ma-surface-outline, .fx-glass) .ma-item-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--ma-angle), var(--ma-accent), var(--ma-accent2), transparent 35%, transparent 65%, var(--ma-accent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: ma-spin 9s linear infinite;
+}
+@keyframes ma-spin { to { --ma-angle: 360deg; } }
+
+/* ---------- Ken Burns: slow cinematic zoom on photos ---------- */
+.fx-kenBurns .ma-hero img,
+.fx-kenBurns .ma-section-banner img,
+.fx-kenBurns .ma-item-media img {
+  animation: ma-kenburns 26s ease-in-out infinite alternate;
+  transform-origin: 60% 40%;
+}
+.fx-kenBurns .ma-item:nth-child(even) .ma-item-media img { animation-duration: 32s; transform-origin: 30% 60%; }
+@keyframes ma-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.12) translate3d(-1.5%, -1%, 0); }
+}
+
+/* ---------- New theme signatures ---------- */
+.ma-theme-emerald-deco .ma-title { font-weight: 400; letter-spacing: 0.12em; }
+.ma-theme-emerald-deco .ma-subtitle { text-transform: uppercase; letter-spacing: 0.3em; font-size: 0.78em; color: var(--ma-accent); }
+.ma-theme-emerald-deco .ma-section-head {
+  padding-block: 0.6em;
+  border-block: 1px solid color-mix(in srgb, var(--ma-accent) 45%, transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ma-accent) 8%, transparent), transparent);
+}
+.ma-theme-emerald-deco .ma-header-inner::before {
+  content: '';
+  position: absolute;
+  inset: -1.2em -2em;
+  z-index: -1;
+  background: repeating-conic-gradient(from -90deg at 50% 100%, color-mix(in srgb, var(--ma-accent) 10%, transparent) 0 4deg, transparent 4deg 12deg);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 100%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 50% 100%, #000 30%, transparent 75%);
+}
+
+.ma-theme-botanical .ma-title { font-style: italic; }
+.ma-theme-botanical .ma-item-inner { border-bottom: 3px solid color-mix(in srgb, var(--ma-accent) 35%, transparent); }
+.ma-theme-botanical .ma-section-title { color: var(--ma-text); }
+.ma-theme-botanical .ma-section-title > span::after {
+  content: ' ❦';
+  color: var(--ma-accent2);
+  font-style: normal;
+}
+
+.ma-theme-brutalist .ma-title { font-size: calc(clamp(2.8em, 12cqi, 8em)); line-height: 0.9; letter-spacing: -0.02em; }
+.ma-theme-brutalist .ma-header { border-bottom: 4px solid var(--ma-text); }
+.ma-theme-brutalist .ma-subtitle {
+  background: var(--ma-accent2);
+  color: var(--ma-text);
+  padding: 0.15em 0.6em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.ma-theme-brutalist .ma-item-inner { border: 3px solid var(--ma-text); box-shadow: 6px 6px 0 var(--ma-text); }
+.ma-theme-brutalist .ma-section-title { color: var(--ma-text); justify-content: flex-start; }
+.ma-theme-brutalist .ma-section-title::before,
+.ma-theme-brutalist .ma-section-title::after { display: none; }
+.ma-theme-brutalist .ma-section-title > span { background: var(--ma-accent2); padding: 0 0.3em; }
+.ma-theme-brutalist .ma-section-head { text-align: start; }
+.ma-theme-brutalist .ma-nav-link[aria-current='true'] { border-radius: 0; background: var(--ma-text); }
+
+.ma-theme-sunset { background-image: linear-gradient(170deg, #3b1240 0%, var(--ma-bg) 45%, #1d0b28 100%); }
+.ma-theme-sunset .ma-title {
+  background: linear-gradient(100deg, #ffd3a8, var(--ma-accent) 40%, var(--ma-accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ma-theme-sunset .ma-section-title { color: var(--ma-text); }
+
+/* ==========================================================================
    Accessibility: motion, forced colors
    ========================================================================== */
 .ma-menu[data-ma-motion='reduced'] *,
@@ -798,8 +1045,8 @@
 
 @media (forced-colors: active) {
   .ma-menu .ma-title,
-  .ma-theme-aurora-glass .ma-title { color: CanvasText; background: none; -webkit-background-clip: border-box; background-clip: border-box; }
-  .ma-aurora, .ma-grain { display: none; }
+  .ma-theme-aurora-glass .ma-title { color: CanvasText !important; background: none !important; -webkit-background-clip: border-box !important; background-clip: border-box !important; }
+  .ma-aurora, .ma-grain, .ma-pattern, .ma-bokeh, .ma-spotlight { display: none; }
   .ma-item-inner { border: 1px solid CanvasText; }
   .ma-lang[aria-pressed='true'], .ma-nav-link[aria-current='true'] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }
@@ -810,7 +1057,7 @@
 @media print {
   @page { size: A4; margin: 12mm; }
   .ma-menu { overflow: visible; min-height: 0; font-size: 11pt; }
-  .ma-nav, .ma-toolbar, .ma-aurora, .ma-grain { display: none !important; }
+  .ma-nav, .ma-toolbar, .ma-aurora, .ma-grain, .ma-bokeh, .ma-spotlight { display: none !important; }
   .ma-menu .ma-reveal { opacity: 1 !important; transform: none !important; }
   .ma-menu * { animation: none !important; transition: none !important; }
   .ma-item { break-inside: avoid; }

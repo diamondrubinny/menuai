@@ -1,8 +1,8 @@
-import { useId } from 'react';
+import { useId, type CSSProperties } from 'react';
 import { useMenuStore } from '../../store/menuStore';
 import { useT } from '../../i18n/ui';
-import { EFFECTS, FONT_IDS, LAYOUTS, PALETTE_KEYS, THEME_IDS, type Design, type FontId, type PaletteKey } from '../../core/schema';
-import { THEMES, resolveDesign } from '../../core/themes';
+import { EFFECTS, FONT_IDS, HERO_STYLES, LAYOUTS, PALETTE_KEYS, PATTERNS, THEME_IDS, type Design, type FontId, type PaletteKey } from '../../core/schema';
+import { THEMES, resolveDesign, surpriseDesign } from '../../core/themes';
 import { FONTS } from '../../core/fonts';
 import { AA_TEXT, contrastRatio } from '../../core/color';
 import { Fieldset, Toggle } from '../fields/Fields';
@@ -11,12 +11,21 @@ export function DesignPanel() {
   const design = useMenuStore((s) => s.menu.design);
   const setDesign = useMenuStore((s) => s.setDesign);
   const setTheme = useMenuStore((s) => s.setTheme);
+  const update = useMenuStore((s) => s.update);
+  const hasHero = useMenuStore((s) => Boolean(s.menu.hero));
   const { t, lang } = useT();
   const resolved = resolveDesign(design);
   const themeName = (id: keyof typeof THEMES) => THEMES[id].name[lang as 'he' | 'en' | 'ar'] ?? THEMES[id].name.en;
 
   return (
     <div className="panel-stack">
+      <div className="surprise">
+        <button type="button" className="btn btn-primary btn-block btn-surprise" onClick={() => update((m) => ({ ...m, design: surpriseDesign(m.design) }))}>
+          <span aria-hidden="true">✦</span> {t('surprise')}
+        </button>
+        <p className="hint">{t('surpriseHint')}</p>
+      </div>
+
       <Fieldset legend={t('theme')}>
         <div className="theme-grid">
           {THEME_IDS.map((id) => {
@@ -58,6 +67,34 @@ export function DesignPanel() {
             <span>{t(`layout_${layout}`)}</span>
           </label>
         ))}
+      </Fieldset>
+
+      <Fieldset legend={t('heroStyle')} className="chips">
+        {HERO_STYLES.map((heroStyle) => (
+          <label key={heroStyle} className="chip">
+            <input type="radio" name="heroStyle" checked={resolved.heroStyle === heroStyle} onChange={() => setDesign({ heroStyle })} />
+            <span>{t(`hero_${heroStyle}`)}</span>
+          </label>
+        ))}
+        {!hasHero && resolved.heroStyle !== 'classic' && <p className="hint chips-note">{t('heroNeedsImage')}</p>}
+      </Fieldset>
+
+      <Fieldset legend={t('pattern')}>
+        <div className="pattern-grid">
+          {PATTERNS.map((pattern) => (
+            <label key={pattern} className="pattern-card">
+              <input type="radio" name="pattern" className="visually-hidden" checked={resolved.pattern === pattern} onChange={() => setDesign({ pattern })} />
+              <span className="pattern-swatch" aria-hidden="true" style={{ backgroundColor: resolved.palette.bg }}>
+                {/* Stronger tint than on the menu so the swatch reads at thumbnail size. */}
+                <span
+                  className={`ma-pattern ma-pattern-${pattern}`}
+                  style={{ '--c': `${resolved.palette.accent}80`, '--c2': `${resolved.palette.accent2}80` } as CSSProperties}
+                />
+              </span>
+              <span className="theme-name">{t(`pattern_${pattern}`)}</span>
+            </label>
+          ))}
+        </div>
       </Fieldset>
 
       <Fieldset legend={t('colors')}>

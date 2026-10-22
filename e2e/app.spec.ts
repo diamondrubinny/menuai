@@ -101,3 +101,11 @@ test('view page, accessibility statement and 404 render', async ({ page }) => {
   await page.goto('/#/nope');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Page not found');
 });
+
+test('"Surprise me" changes the theme and undo restores it', async ({ page }) => {
+  await openTab(page, /Design/);
+  await page.getByRole('button', { name: /Surprise me/ }).click();
+  await expect(page.locator('.device-screen .ma-menu')).not.toHaveClass(/ma-theme-noir-gold/);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.device-screen .ma-menu')).toHaveClass(/ma-theme-noir-gold/);
+});
