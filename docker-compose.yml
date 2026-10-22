@@ -1,0 +1,56 @@
+# MenuAI server stack. Usage:
+#   cp .env.example .env   # then fill in the values
+#   docker compose up -d --build
+# nginx on the host proxies /api to 127.0.0.1:3000 and serves dist/ and published menus.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: menuai
+      POSTGRES_USER: menuai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U menuai -d menuai"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    # No published port: the database is reachable only from the api container.
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://menuai:${POSTGRES_PASSWORD}@db:5432/menuai
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      HOST: 0.0.0.0
+      PORT: 3000
+      # Exactly one trusted hop (host nginx, seen through Docker's port mapping).
+      # A higher value would let clients forge their IP via X-Forwarded-For.
+      TRUST_PROXY_HOPS: 1
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - published:/var/lib/menuai/published
+      - uploads:/var/lib/menuai/uploads
+    # Bound to localhost only: the host's nginx is the single public entry point.
+    ports:
+      - "127.0.0.1:3000:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  db-data:
+  published:
+  uploads:

@@ -1,6 +1,16 @@
 # שלב 2 — MenuAI Cloud: שרת, משתמשים וכתובת קבועה לכל תפריט
 
-> **סטטוס: אפיון — ממתין לאישור.** לא נכתב קוד שרת לפני אישור.
+> **סטטוס: אפיון מאושר — בביצוע.**
+
+## 0. החלטות שהתקבלו (22.10.2026)
+
+| שאלה | החלטה | השלכה על התכנון |
+|---|---|---|
+| אחסון | **השרת שלך** (Docker Compose) | הסקריפט הקיים יורחב להתקנת השרת |
+| מודל | **קוד פתוח להתקנה עצמית** — כל עסק מתקין שרת משלו | **התקנה אחת = עסק אחד.** אין טבלת ארגונים ואין הרשמה ציבורית; משתמשים נכנסים רק בהזמנה. פחות משטח תקיפה (אין IDOR בין עסקים) |
+| התחברות | **קישור קסם באימייל** (בלי סיסמאות) | אין גיבובי סיסמה לשמור; טוקן חד־פעמי, 15 דק׳, מגובב במסד. הבעלים הראשון נוצר בפקודת התקנה |
+| ספק אימייל | **טרם הוחלט** | הגדרות SMTP כלליות ב־`.env`; בלי SMTP — פקודת שורת הפקודה מפיקה קישור כניסה לבעלים |
+| מימוש האימות | **מימוש עצמי מינימלי** במקום ספרייה | קישור קסם הוא מנגנון קטן; קוד שלנו, מתועד ונבדק — בלי תלות ב־API של ספרייה שעלול להשתנות |
 
 ## 1. מטרה וערך עסקי
 
@@ -17,14 +27,14 @@
 ## 2. הנחות עבודה (לאישור)
 
 1. **אחסון:** השרת שלך (Debian/Ubuntu) — אותו שרת שכבר יש לו סקריפט התקנה. הכל רץ ב־Docker Compose.
-2. **ריבוי לקוחות (multi-tenant):** כל עסק = ארגון נפרד, עם הפרדת נתונים מלאה בשרת.
+2. **התקנה אחת = עסק אחד** (ראו החלטות בסעיף 0).
 3. **העורך הקיים נשאר כמו שהוא** ועובד גם בלי חשבון (מצב מקומי). חשבון מוסיף שמירה בענן ופרסום.
 4. **תפריטים מפורסמים הם קבצי HTML סטטיים** (אותו מנוע ייצוא קיים, רץ בשרת) שמוגשים ישירות מ־nginx — מהיר, זול, ובלי משטח תקיפה של אפליקציה בצד האורח.
 5. **אין תשלומים בשלב 2.** (שלב נפרד, אם תבחר SaaS.)
 
 ## 3. User Stories
 
-- כבעל עסק, אני רוצה להירשם עם אימייל וסיסמה ולאמת את האימייל.
+- כבעל עסק, אני רוצה להתחבר בקישור שנשלח לאימייל שלי, בלי לזכור סיסמה.
 - כבעל עסק, אני רוצה שהטיוטה שלי תישמר בענן אוטומטית ואמשיך לערוך מהנייד או מהמחשב.
 - כבעל עסק, אני רוצה ללחוץ "פרסום" ושהתפריט יתעדכן מיד בכתובת הקבועה שלו.
 - כבעל עסק, אני רוצה להזמין עובד כ"עורך" שיכול לעדכן מחירים אבל לא למחוק את העסק.
@@ -53,8 +63,8 @@ src/core/       ← משותף לעורך ולשרת: סכמת zod, ייצוא H
 server/
   src/
     app.ts            Fastify + plugins (helmet, rate-limit, cors, cookie)
-    auth/             הרשמה, התחברות, אימות אימייל, איפוס סיסמה, MFA
-    orgs/             ארגונים, חברים, הזמנות, תפקידים
+    auth/             קישורי קסם, סשנים, requireRole
+    users/            הזמנות, תפקידים, השבתה
     menus/            CRUD, גרסאות, פרסום
     uploads/          קבלה → הסגר → סריקה → עיבוד → שחרור
     db/               Drizzle schema + migrations
@@ -67,13 +77,13 @@ docker-compose.yml
 
 | נושא | בחירה | למה | חלופות | מגבלות/עלות |
 |---|---|---|---|---|
+| בדיקות מסד נתונים | **PGlite** (Postgres מוטמע) | בדיקות אמיתיות מול Postgres בלי Docker ב־CI | Testcontainers | — |
 | שרת API | **Fastify + TypeScript** | מהיר, סכמות מובנות, אקו־סיסטם אבטחה (helmet, rate-limit) | Express, NestJS, Hono | צריך לתחזק שרת Node |
 | מסד נתונים | **PostgreSQL 16** | יציב, JSONB לתפריט, טרנזקציות | SQLite (פשוט יותר, פחות סקיילבילי), MySQL | גיבויים באחריותנו |
-| ORM | **Drizzle** | TypeScript מלא, שאילתות פרמטריות, migrations | Prisma, Kysely | — |
-| אימות משתמשים | **Better Auth** (ספרייה, רצה אצלנו) | נתונים נשארים אצלך, תומך אימייל+סיסמה, אימות אימייל, איפוס, TOTP MFA, rate limit | Auth.js, Clerk/Supabase (מנוהל — מידע עובר לצד שלישי) | *דורש אימות מול התיעוד הרשמי לגרסה העדכנית* |
-| גיבוב סיסמאות | scrypt/argon2 (ברירת המחדל של הספרייה) | חזק ומקובל | bcrypt | — |
+| גישה למסד | **SQL פרמטרי בלבד** דרך ממשק `SqlClient` דק + migrations ב־SQL רגיל | שקוף, בלי תלויות, בלי סיכון הזרקה (פרמטרים בלבד) | Drizzle, Prisma, Kysely | פחות נוחות מ־ORM |
+| אימות משתמשים | **קישורי קסם — מימוש עצמי** (`crypto.randomBytes` + SHA-256) | מנגנון קטן ושקוף, בלי סיסמאות לשמור | Better Auth, Auth.js | אחריות על הקוד שלנו → בדיקות אבטחה ייעודיות |
 | סשנים | עוגיית סשן `HttpOnly; Secure; SameSite=Lax` | לא נגישה ל־JS, הגנה מ־XSS ו־CSRF בסיסי | JWT ב־localStorage (פחות בטוח) | — |
-| שליחת אימיילים | SMTP (שירות לבחירתך: Postmark / Resend / Amazon SES / שרת משלך) | אימות אימייל ואיפוס סיסמה | — | **ספק צד שלישי מקבל כתובות אימייל → נדרש DPA** |
+| שליחת אימיילים | **nodemailer + SMTP כללי** (כל ספק, נקבע ב־`.env`) | קישורי כניסה והזמנות | — | **ספק צד שלישי מקבל כתובות אימייל → נדרש DPA** |
 | סריקת וירוסים | **ClamAV (clamd)** בקונטיינר | קוד פתוח, מקומי, בלי שליחת קבצים החוצה | שירות מנוהל (VirusTotal וכו׳ — שולח קבצים לצד שלישי) | ~1GB זיכרון |
 | עיבוד תמונות | **sharp** — re-encode ל־WebP | מסיר EXIF ומטען זדוני | — | — |
 | פרסום | HTML סטטי שנכתב לדיסק ומוגש מ־nginx | מהיר, עמיד לעומס, בלי DB בדרך של האורח | SSR דינמי | צריך לנקות קבצים במחיקה |
@@ -82,49 +92,48 @@ docker-compose.yml
 ## 6. סכמת מסד נתונים
 
 ```sql
-users            (id, email UNIQUE, email_verified, name, password_hash, mfa_secret_enc, created_at)
-sessions         (id, user_id, token_hash, expires_at, ip_hash, user_agent, created_at)
-organizations    (id, name, slug UNIQUE, created_at)
-memberships      (org_id, user_id, role ENUM('owner','editor','viewer'), PRIMARY KEY(org_id,user_id))
-invitations      (id, org_id, email, role, token_hash, expires_at, accepted_at)
-menus            (id, org_id → organizations, slug, draft JSONB, draft_version INT, updated_by, updated_at,
-                  UNIQUE(org_id, slug))
+users            (id, email UNIQUE, name, role ENUM('owner','editor','viewer'), created_at, disabled_at)
+login_tokens     (id, user_id, token_hash UNIQUE, expires_at, used_at, created_ip_hash)   -- קישורי קסם
+sessions         (id, user_id, token_hash UNIQUE, expires_at, last_seen_at, user_agent, created_at)
+menus            (id, slug UNIQUE, draft JSONB, draft_version INT, updated_by, updated_at)
 menu_versions    (id, menu_id, version INT, data JSONB, created_by, created_at, note)
 publications     (menu_id PK, public_slug UNIQUE, version_id, published_by, published_at)
-uploads          (id, org_id, status ENUM('quarantine','clean','rejected'), mime, bytes, sha256,
+uploads          (id, status ENUM('quarantine','clean','rejected'), mime, bytes, sha256,
                   storage_key, created_by, created_at, scanned_at)
-audit_log        (id, org_id, user_id, action, target_type, target_id, at, meta JSONB)  -- ללא תוכן רגיש
+audit_log        (id, user_id, action, target_type, target_id, at, meta JSONB)  -- ללא תוכן רגיש
 ```
-- כל טבלה עם `org_id` נשלפת **תמיד** דרך שכבת שירות שמקבלת `orgId` מהסשן — לעולם לא מה־URL בלבד (הגנת IDOR/BOLA).
+- **הרשאות:** כל פעולה עוברת בדיקת תפקיד בשרת (`requireRole`) — owner מנהל משתמשים ומשחזר גרסאות, editor עורך ומפרסם, viewer קורא בלבד.
+- טוקנים (קישורי קסם, סשנים) נשמרים **רק כגיבוב SHA-256**; דליפת מסד לא מאפשרת התחברות.
 - `draft_version` מונע דריסה כשאותו תפריט נערך משני מכשירים (optimistic locking → 409 + הצעת מיזוג).
 
 ## 7. API
 
 | Method | Path | גישה | הערות |
 |---|---|---|---|
-| POST | `/api/auth/sign-up` · `/sign-in` · `/sign-out` | ציבורי | rate limit, הודעת שגיאה אחידה (לא חושפת אם האימייל קיים) |
-| POST | `/api/auth/verify-email` · `/forgot-password` · `/reset-password` | ציבורי | טוקן חד־פעמי, תוקף 30 דק׳ |
-| POST | `/api/auth/mfa/enable` · `/mfa/verify` | מחובר | TOTP; חובה לבעלים (ניתן להגדרה) |
-| GET | `/api/me` | מחובר | משתמש + ארגונים |
-| POST | `/api/orgs` | מחובר | יוצר ארגון, היוצר = owner |
-| GET/PATCH | `/api/orgs/:orgId` | חבר / owner | |
-| POST/DELETE | `/api/orgs/:orgId/members` · `/invitations` | owner | |
-| GET/POST | `/api/orgs/:orgId/menus` | viewer / editor | |
-| GET/PUT/DELETE | `/api/orgs/:orgId/menus/:menuId` | viewer / editor / owner | PUT עם `If-Match: draft_version`; ולידציית zod משותפת |
-| GET | `/api/orgs/:orgId/menus/:menuId/versions` | viewer | |
-| POST | `/api/orgs/:orgId/menus/:menuId/publish` | editor | יוצר גרסה + כותב HTML |
-| POST | `/api/orgs/:orgId/menus/:menuId/restore/:versionId` | owner | |
-| POST | `/api/orgs/:orgId/uploads` | editor | multipart, ≤8MB, PNG/JPEG/WebP בלבד |
-| GET | `/api/orgs/:orgId/uploads/:id` | viewer | רק `clean` |
-| GET | `/m/:publicSlug` | **ציבורי** | קובץ סטטי מ־nginx, cache קצר |
+| POST | `/api/auth/request-link` | ציבורי | תמיד מחזיר אותה תשובה (לא חושף אם האימייל קיים); rate limit לפי IP ואימייל |
+| GET | `/api/auth/verify?token=` | ציבורי | טוקן חד־פעמי → יוצר סשן (עוגייה) → הפניה לעורך |
+| POST | `/api/auth/sign-out` | מחובר | מבטל את הסשן |
+| GET | `/api/me` | מחובר | משתמש ותפקיד |
+| GET/POST/PATCH/DELETE | `/api/users` | owner | הזמנה (שולחת קישור), שינוי תפקיד, השבתה |
+| GET/POST | `/api/menus` | viewer / editor | |
+| GET/PUT/DELETE | `/api/menus/:id` | viewer / editor / owner | PUT עם `If-Match: draft_version`; ולידציית zod משותפת |
+| GET | `/api/menus/:id/versions` | viewer | |
+| POST | `/api/menus/:id/publish` | editor | יוצר גרסה + כותב HTML |
+| POST | `/api/menus/:id/restore/:versionId` | owner | |
+| POST | `/api/uploads` | editor | multipart, ≤8MB, PNG/JPEG/WebP בלבד |
+| GET | `/api/uploads/:id` | viewer | רק `clean` |
+| GET | `/api/health` | ציבורי | בדיקת חיים (ללא מידע פנימי) |
+| GET | `/m/:publicSlug` | **ציבורי** | קובץ סטטי מ־nginx |
+
+**התקנה ראשונה:** `docker compose exec api node dist/cli.js create-owner you@example.com` → יוצר בעלים ומדפיס קישור כניסה חד־פעמי (לשימוש גם כשאין עדיין SMTP).
 
 ## 8. Threat Model
 
 | נכס | איום | סיכון | בקרה |
 |---|---|---|---|
-| חשבונות | Brute force / credential stuffing | גבוה | rate limit לפי IP+אימייל, השהיה מדורגת, MFA לבעלים, התראה על התחברות חדשה |
-| חשבונות | השתלטות דרך איפוס סיסמה | גבוה | טוקן אקראי חד־פעמי מגובב, תוקף קצר, ביטול כל הסשנים אחרי איפוס |
-| נתוני ארגון | IDOR — גישה לתפריט של עסק אחר בשינוי מזהה | גבוה | בדיקת חברות+תפקיד בכל בקשה בשכבת השירות; בדיקות אוטומטיות ייעודיות לכל endpoint |
+| חשבונות | השתלטות דרך תיבת אימייל / יירוט קישור | גבוה | קישור חד־פעמי, תוקף 15 דק׳, מגובב במסד, rate limit; קישור שכבר נוצל נדחה; התראה על כניסה חדשה |
+| חשבונות | ספאם / שימוש לרעה בשליחת קישורים | בינוני | אין הרשמה ציבורית: קישור נשלח רק לאימייל של משתמש קיים; תשובה אחידה; rate limit |
+| הרשאות | עורך/צופה מבצע פעולת בעלים | גבוה | `requireRole` בכל endpoint בשרת; בדיקות אוטומטיות לכל תפקיד × endpoint |
 | סשן | גניבת עוגייה / CSRF | בינוני | HttpOnly+Secure+SameSite, בדיקת Origin בבקשות שמשנות מידע |
 | תפריט מפורסם | XSS בתוכן | בינוני | אותו מנוע ייצוא (escape + CSP עם hash) + ולידציית zod בשרת |
 | העלאות | נוזקה / polyglot / SVG | גבוה | רשימת סוגים מותרים, בדיקת magic bytes, הסגר → ClamAV → re-encode ב־sharp → שחרור; קבצים מחוץ לתיקיית web, שם אקראי |
@@ -137,8 +146,8 @@ audit_log        (id, org_id, user_id, action, target_type, target_id, at, meta 
 
 | מידע | מטרה | בסיס | אחסון | שמירה | צד שלישי |
 |---|---|---|---|---|---|
-| אימייל, שם | חשבון, התחברות | חוזה | Postgres בשרת שלך | עד מחיקת חשבון + 30 יום | ספק אימייל (משלוח בלבד) — **DPA** |
-| גיבוב סיסמה, סוד MFA (מוצפן) | אבטחה | חוזה | Postgres | עד מחיקת חשבון | — |
+| אימייל, שם, תפקיד | חשבון, התחברות | חוזה | Postgres בשרת שלך | עד מחיקת חשבון + 30 יום | ספק אימייל (משלוח בלבד) — **DPA** |
+| גיבובי טוקנים (קישורי קסם, סשנים) | אבטחה | חוזה | Postgres | קישור: 24 שעות; סשן: 30 יום | — |
 | סשנים (IP מגובב, user-agent) | אבטחה, זיהוי חריגות | אינטרס לגיטימי | Postgres | 30 יום | — |
 | תוכן תפריטים ותמונות | השירות | חוזה | Postgres + דיסק | עד מחיקה | — |
 | יומן ביקורת (ללא תוכן) | אבטחה | אינטרס לגיטימי | Postgres | 12 חודשים | — |
@@ -152,8 +161,8 @@ audit_log        (id, org_id, user_id, action, target_type, target_id, at, meta 
 
 | שלב | תוכן | תוצאה |
 |---|---|---|
-| **2א** | תשתית: Docker Compose, Postgres, Fastify, migrations, בדיקות, CI | שרת עולה ועובר בדיקות |
-| **2ב** | אימות משתמשים מלא + ארגונים ותפקידים + בדיקות IDOR | הרשמה/התחברות מאובטחת |
+| **2א** ✅ | תשתית: Docker Compose, Postgres, Fastify, migrations, בדיקות, CI | שרת עולה ועובר בדיקות |
+| **2ב** | קישורי קסם, סשנים, משתמשים ותפקידים, פקודת יצירת בעלים, בדיקות הרשאות | התחברות מאובטחת |
 | **2ג** | סנכרון העורך לענן (שמירה אוטומטית, נעילה אופטימית, ייבוא מתפריט מקומי) | עריכה מכל מכשיר |
 | **2ד** | פרסום לכתובת קבועה + QR אוטומטי + היסטוריה ושחזור | "פרסום" בלחיצה |
 | **2ה** | העלאות עם הסגר ו־ClamAV | תמונות בטוחות בענן |
@@ -165,5 +174,5 @@ audit_log        (id, org_id, user_id, action, target_type, target_id, at, meta 
 
 - **מורכבות תפעולית:** שרת עם DB דורש גיבויים, עדכוני אבטחה וניטור — הסקריפט יכסה את ההתקנה, אבל התחזוקה מתמשכת.
 - **משאבי שרת:** Postgres + Node + ClamAV ≈ 2GB RAM לפחות. *לבדוק את מפרט השרת שלך.*
-- **אימיילים:** בלי ספק SMTP אמין, אימות אימייל ואיפוס סיסמה לא יעבדו (ייפלו לספאם).
+- **אימיילים:** בלי ספק SMTP אמין, קישורי הכניסה וההזמנות לא יגיעו (או ייפלו לספאם). עד שיוגדר ספק, הבעלים נכנס בעזרת פקודת `create-owner` / `login-link`.
 - **רגולציה:** ברגע שנשמר מידע אישי בשרת — חלות חובות חוק הגנת הפרטיות. *דורש בדיקה משפטית לפני עלייה לאוויר.*

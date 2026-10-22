@@ -1,0 +1,34 @@
+import { Writable } from 'node:stream';
+import { buildApp } from '../src/app';
+import { loadConfig, type Config } from '../src/config';
+import { createPgliteClient } from '../src/db/pglite';
+import { migrate } from '../src/db/migrate';
+import type { SqlClient } from '../src/db/sql';
+
+export function testConfig(overrides: Record<string, string> = {}): Config {
+  return loadConfig({
+    NODE_ENV: 'test',
+    DATABASE_URL: 'postgres://unused/test',
+    PUBLIC_URL: 'http://localhost:5173',
+    LOG_LEVEL: 'silent',
+    ...overrides,
+  });
+}
+
+export async function testDb(): Promise<SqlClient> {
+  const db = await createPgliteClient();
+  await migrate(db);
+  return db;
+}
+
+export async function testApp(opts: { config?: Record<string, string>; db?: SqlClient; logs?: string[] } = {}) {
+  const db = opts.db ?? (await testDb());
+  const config = testConfig(opts.config);
+  const logs = opts.logs;
+  const app = await buildApp({
+    config: logs ? { ...config, LOG_LEVEL: 'info' } : config,
+    db,
+    logStream: logs ? new Writable({ write(chunk, _enc, cb) { logs.push(String(chunk)); cb(); } }) : undefined,
+  });
+  return { app, db, config };
+}

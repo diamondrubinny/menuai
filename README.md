@@ -36,6 +36,22 @@ npm run dev          # http://localhost:5173
 
 Requirements: Node.js ≥ 20. No environment variables or secrets are needed (see `.env.example`).
 
+## Server (Phase 2 — in progress)
+
+Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Step 2a (infrastructure) is done: Fastify API, PostgreSQL with SQL migrations, hardened headers, rate limiting, safe logging, Docker Compose.
+
+```bash
+cp .env.example .env          # fill in PUBLIC_URL and POSTGRES_PASSWORD
+docker compose up -d --build  # Postgres + API on 127.0.0.1:3000
+curl http://127.0.0.1:3000/api/health
+```
+
+| Command | Purpose |
+|---|---|
+| `npm run server:dev` | API with auto-reload (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`) |
+| `npm run test:server` | API tests against an in-process Postgres (PGlite) — no Docker needed |
+| `npm run server:build` / `server:start` | Production bundle |
+
 ## Deploy the editor
 
 `npm run build` produces a static site in `dist/` that works on any static host (relative paths, hash routing — no rewrites needed).
