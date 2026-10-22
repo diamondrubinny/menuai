@@ -1,8 +1,8 @@
 # MenuAI
 
-**Open-source, multilingual, designer-grade menu builder.** Build a restaurant / café / bar menu in any language (full RTL), pick one of 12 studio themes, layer effects (glass, neon, aurora, grain, 3D tilt, shimmer, parallax…), preview it on phone, tablet, desktop and TV, then export **one self-contained HTML file**, print an A4 PDF or generate a QR code.
+**Open-source, multilingual, designer-grade menu builder.** Build a restaurant / café / bar menu in any language (full RTL), pick one of 16 studio themes, layer effects (glass, neon, aurora, bokeh, spotlight, gradient borders, Ken Burns, 3D tilt, shimmer, parallax…), preview it on phone, tablet, desktop and TV, then export **one self-contained HTML file**, print an A4 PDF or generate a QR code.
 
-> 🇮🇱 **בעברית:** מערכת קוד פתוח לבניית תפריטים מעוצבים בכל שפה (כולל RTL מלא), עם 12 ערכות עיצוב, 10 אפקטים, 4 פריסות ותצוגה מקדימה לנייד/טאבלט/מחשב/טלוויזיה. מייצאים קובץ HTML אחד שעובד בכל אחסון, מדפיסים ל־PDF או מפיקים קוד QR. אפיון ותוכנית: [`docs/PLAN.md`](docs/PLAN.md).
+> 🇮🇱 **בעברית:** מערכת קוד פתוח לבניית תפריטים מעוצבים בכל שפה (כולל RTL מלא), עם 16 ערכות עיצוב, 14 אפקטים, 4 פריסות, 3 סגנונות פתיחה, 7 דוגמאות רקע, כפתור "הפתיעו אותי" ותצוגה מקדימה לנייד/טאבלט/מחשב/טלוויזיה. מייצאים קובץ HTML אחד שעובד בכל אחסון, מדפיסים ל־PDF או מפיקים קוד QR. אפיון ותוכנית: [`docs/PLAN.md`](docs/PLAN.md).
 
 ## Features
 
@@ -10,8 +10,8 @@
 |---|---|
 | Content | Sections, items, descriptions, prices, price variants (sizes), images, tags (vegan, chef's pick…), the 14 EU allergens, spiciness, calories, sold-out, hidden |
 | Languages | 33 languages in the picker + any BCP-47 code; per-field translations with fallback; RTL (he, ar, fa, ur, yi…); translation progress; editable menu labels per language; guests' browser language auto-selected in exported menus |
-| Design | 12 themes (Noir & Gold, Ivory Bistro, Chalkboard, Neon Night, Aurora Glass, Nordic Minimal, Terracotta, Matcha Zen, Ocean Breeze, Desert Souk, Retro Diner, Garden Brunch), 4 layouts (list, cards, magazine, showcase), custom colors with live contrast warnings, 12 self-hosted fonts with automatic Hebrew/Arabic/Cyrillic fallbacks, radius, density, text size |
-| Effects | Reveal on scroll, glassmorphism, neon glow, aurora, film grain, 3D tilt, shimmer, parallax (scroll-driven), dot leaders, ornaments — all disabled for `prefers-reduced-motion` and via a "reduce motion" button on the menu |
+| Design | 16 themes (Noir & Gold, Ivory Bistro, Chalkboard, Neon Night, Aurora Glass, Nordic Minimal, Terracotta, Matcha Zen, Ocean Breeze, Desert Souk, Retro Diner, Garden Brunch, Emerald Deco, Botanical, Brutalist, Sunset), 4 layouts (list, cards, magazine, showcase), 3 opening styles (classic, title over cover photo, split), section banner images, 7 CSS background patterns (dots, grid, waves, terrazzo, arabesque, stripes), "Surprise me" designer combinations, custom colors with live contrast warnings, 12 self-hosted fonts with automatic Hebrew/Arabic/Cyrillic fallbacks, radius, density, text size |
+| Effects | Reveal on scroll, glassmorphism, neon glow, aurora, film grain, 3D tilt, shimmer, parallax (scroll-driven), dot leaders, ornaments, pointer spotlight, bokeh lights, rotating gradient borders, Ken Burns zoom — all disabled for `prefers-reduced-motion` and via a "reduce motion" button on the menu |
 | Screens | Container-query layouts: the preview of a tablet behaves exactly like a tablet. Phone / tablet (rotate) / desktop / TV-kiosk previews, full-screen view, A4 print stylesheet |
 | Publishing | Single-file HTML export (fonts + images embedded, strict CSP with script hash, no external requests), print/PDF, QR code (SVG), JSON backup/import |
 | Editor | Undo/redo (Ctrl+Z / Ctrl+Shift+Z), autosave in the browser, Hebrew / English / Arabic UI, mobile-friendly editor |
@@ -70,7 +70,7 @@ src/
 tests/         unit tests        e2e/  Playwright + axe
 ```
 
-Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/PLAN.md). Pre-launch checklist: [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
+Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/PLAN.md). Design 2.0 notes: [`docs/DESIGN_V2.md`](docs/DESIGN_V2.md). Pre-launch checklist: [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
 
 ### Adding a theme
 

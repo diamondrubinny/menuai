@@ -636,3 +636,30 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
   .toggle input { border: 1px solid CanvasText; }
   .chip input:checked + span, .segmented button[aria-pressed='true'] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }
+
+/* Design 2.0 controls */
+.surprise { display: grid; gap: 0.4rem; }
+.btn-surprise {
+  min-height: 52px;
+  font-size: 1rem;
+  background: linear-gradient(120deg, #8a5a12, #b8862f 45%, #7a3e8f);
+  border: 0;
+  color: #fff;
+  box-shadow: 0 10px 24px -14px rgb(122 62 143 / 0.8);
+}
+.btn-surprise:hover { filter: brightness(1.08); }
+.chips-note { width: 100%; }
+.pattern-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 0.5rem; }
+.pattern-card { display: grid; gap: 0.3rem; cursor: pointer; }
+.pattern-swatch {
+  position: relative;
+  display: block;
+  height: 56px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  overflow: hidden;
+  isolation: isolate;
+}
+.pattern-swatch .ma-pattern { position: absolute; inset: 0; z-index: 0; -webkit-mask-image: none; mask-image: none; }
+.pattern-card input:checked + .pattern-swatch { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
+.pattern-card input:focus-visible + .pattern-swatch { outline: 3px solid var(--focus); outline-offset: 3px; }
