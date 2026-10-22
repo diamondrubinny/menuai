@@ -6,6 +6,7 @@ import { t } from '../core/localize';
 import { label } from '../core/labels';
 import { formatPrice } from '../core/format';
 import { getLocaleInfo } from '../core/locales';
+import { isDark } from '../core/color';
 import { ChiliIcon, OrnamentSvg, TagIcon } from './icons';
 
 export interface MenuRendererProps {
@@ -72,6 +73,8 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
     `ma-tex-${theme.texture}`,
     `ma-density-${menu.design.density}`,
     `ma-hero-${heroStyle}`,
+    design.mode === 'alt' ? 'ma-mode-alt' : '',
+    isDark(palette.bg) ? 'ma-dark' : 'ma-light',
     theme.headingCase === 'uppercase' ? 'ma-case-upper' : '',
     menu.design.stickyNav ? 'ma-sticky-nav' : '',
     ...fxClasses,

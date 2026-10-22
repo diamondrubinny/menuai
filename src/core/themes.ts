@@ -1,5 +1,6 @@
 import { HERO_STYLES, PATTERNS, THEME_IDS } from './schema';
-import type { Design, Effect, FontId, HeroStyle, Layout, PaletteKey, Pattern, ThemeId } from './schema';
+import { ensureContrast, hexToHsl, isDark, mix } from './color';
+import type { Design, Effect, FontId, HeroStyle, Layout, Mode, PaletteKey, Pattern, ThemeId } from './schema';
 
 export type Palette = Record<PaletteKey, string>;
 export type Surface = 'flat' | 'card' | 'glass' | 'outline';
@@ -155,8 +156,69 @@ export const THEMES: Record<ThemeId, Theme> = {
   },
 };
 
+/** Gray accents (e.g. Nordic's black) become the text color; colored ones keep their hue. */
+function altAccent(accent: string, text: string, backgrounds: string[]): string {
+  return hexToHsl(accent)[1] < 0.08 ? text : ensureContrast(accent, backgrounds);
+}
+
+/**
+ * The theme's opposite: a light version of a dark theme or a dark version of a light one.
+ * Built from the theme's own accent hues, then every text color is corrected to WCAG AA
+ * against both the background and the card surface.
+ */
+export function deriveAltPalette(p: Palette): Palette {
+  if (isDark(p.bg)) {
+    const bg = mix('#ffffff', p.accent, 0.06);
+    const surface = '#ffffff';
+    const text = ensureContrast(mix('#14110f', p.accent, 0.12), [bg, surface], 7);
+    return {
+      bg,
+      surface,
+      text,
+      muted: ensureContrast(mix(text, bg, 0.3), [bg, surface]),
+      accent: altAccent(p.accent, text, [bg, surface]),
+      accent2: p.accent2,
+    };
+  }
+  const bg = mix('#0e0d10', p.accent, 0.1);
+  const surface = mix(bg, '#ffffff', 0.07);
+  const text = ensureContrast(mix('#f6f2ea', p.accent, 0.06), [bg, surface], 7);
+  return {
+    bg,
+    surface,
+    text,
+    muted: ensureContrast(mix(text, bg, 0.3), [bg, surface]),
+    accent: altAccent(p.accent, text, [bg, surface]),
+    accent2: p.accent2,
+  };
+}
+
+export function themePalette(theme: Theme, mode: Mode = 'original'): Palette {
+  return mode === 'alt' ? deriveAltPalette(theme.palette) : theme.palette;
+}
+
+export interface FontPair {
+  id: string;
+  name: { he: string; en: string; ar: string };
+  display: FontId;
+  body: FontId;
+}
+
+/** Curated heading + body pairings. */
+export const FONT_PAIRS: FontPair[] = [
+  { id: 'classic', name: { he: 'אלגנטי קלאסי', en: 'Classic elegance', ar: 'أناقة كلاسيكية' }, display: 'playfair-display', body: 'heebo' },
+  { id: 'literary', name: { he: 'ספרותי', en: 'Literary', ar: 'أدبي' }, display: 'cormorant-garamond', body: 'frank-ruhl-libre' },
+  { id: 'modern', name: { he: 'מודרני נקי', en: 'Modern clean', ar: 'عصري نظيف' }, display: 'rubik', body: 'heebo' },
+  { id: 'bold', name: { he: 'נועז', en: 'Bold display', ar: 'جريء' }, display: 'secular-one', body: 'rubik' },
+  { id: 'handmade', name: { he: 'כתב יד', en: 'Handmade', ar: 'خط يدوي' }, display: 'amatic-sc', body: 'heebo' },
+  { id: 'oriental', name: { he: 'מזרחי', en: 'Oriental', ar: 'شرقي' }, display: 'amiri', body: 'cairo' },
+  { id: 'mediterranean', name: { he: 'ים־תיכוני', en: 'Mediterranean', ar: 'متوسطي' }, display: 'suez-one', body: 'rubik' },
+  { id: 'poster', name: { he: 'פוסטר', en: 'Poster', ar: 'ملصق' }, display: 'bebas-neue', body: 'inter' },
+];
+
 export interface ResolvedDesign {
   theme: Theme;
+  mode: Mode;
   palette: Palette;
   fontDisplay: FontId;
   fontBody: FontId;
@@ -176,9 +238,11 @@ const NO_EFFECTS: Record<Effect, boolean> = {
 /** Theme defaults merged with the user's overrides. */
 export function resolveDesign(design: Design): ResolvedDesign {
   const theme = THEMES[design.theme];
+  const mode = design.mode ?? 'original';
   return {
     theme,
-    palette: { ...theme.palette, ...design.palette },
+    mode,
+    palette: { ...themePalette(theme, mode), ...design.palette },
     fontDisplay: design.fontDisplay ?? theme.fontDisplay,
     fontBody: design.fontBody ?? theme.fontBody,
     layout: design.layout,
@@ -198,6 +262,7 @@ export function applyTheme(design: Design, themeId: ThemeId): Design {
     layout: theme.layout,
     heroStyle: undefined,
     pattern: undefined,
+    mode: undefined,
     palette: {},
     fontDisplay: undefined,
     fontBody: undefined,
@@ -230,6 +295,7 @@ export function surpriseDesign(design: Design, rand: () => number = Math.random)
     ...base,
     heroStyle: rand() < 0.5 ? theme.heroStyle : pick(HERO_STYLES, rand),
     pattern: rand() < 0.6 ? theme.pattern : pick(PATTERNS, rand),
+    mode: rand() < 0.3 ? 'alt' : undefined,
     effects,
   };
 }

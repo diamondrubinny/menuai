@@ -1021,6 +1021,29 @@
 .ma-theme-sunset .ma-section-title { color: var(--ma-text); }
 
 /* ==========================================================================
+   Design 2.1 — light/dark-safe overrides
+   .ma-light / .ma-dark describe the final background, whatever theme or mode produced it.
+   ========================================================================== */
+
+/* Gradient titles on light backgrounds: no white band, no pale decorative color in the text. */
+.ma-light.fx-shimmer .ma-title {
+  background-image: linear-gradient(105deg, var(--ma-accent) 20%, var(--ma-text) 42%, var(--ma-accent) 64%, var(--ma-accent) 100%);
+}
+.ma-light.ma-theme-aurora-glass .ma-title,
+.ma-light.ma-theme-sunset .ma-title {
+  background-image: linear-gradient(120deg, var(--ma-text), var(--ma-accent));
+}
+.ma-theme-sunset.ma-mode-alt { background-image: none; }
+
+/* Fixed-color details that assumed the theme's original background. */
+.ma-theme-retro-diner .ma-price { color: var(--ma-bg); }
+.ma-dark.ma-theme-retro-diner .ma-price { background: color-mix(in srgb, var(--ma-accent) 22%, transparent); color: var(--ma-accent); }
+.ma-theme-brutalist .ma-subtitle,
+.ma-theme-brutalist .ma-section-title > span { color: #0a0a0a; }
+.ma-dark.ma-theme-brutalist .ma-item-inner { box-shadow: 6px 6px 0 var(--ma-accent2); }
+.ma-light.ma-tex-chalk { border-image: linear-gradient(135deg, #b58b5d, #8a6440 40%, #c19a6b 70%, #8a6440) 1; }
+
+/* ==========================================================================
    Accessibility: motion, forced colors
    ========================================================================== */
 .ma-menu[data-ma-motion='reduced'] *,

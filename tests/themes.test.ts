@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { THEMES } from '../src/core/themes';
-import { AA_TEXT, contrastRatio } from '../src/core/color';
+import { THEMES, deriveAltPalette } from '../src/core/themes';
+import { AA_TEXT, contrastRatio, isDark } from '../src/core/color';
 import { THEME_IDS } from '../src/core/schema';
 
 describe('themes', () => {
@@ -18,6 +18,18 @@ describe('themes', () => {
           });
         }
       }
+    });
+  }
+
+  for (const theme of Object.values(THEMES)) {
+    it(`${theme.id} alt palette meets WCAG AA and flips light/dark`, () => {
+      const alt = deriveAltPalette(theme.palette);
+      for (const fg of [alt.text, alt.muted, alt.accent]) {
+        for (const bg of [alt.bg, alt.surface]) {
+          expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(AA_TEXT);
+        }
+      }
+      expect(isDark(alt.bg)).toBe(!isDark(theme.palette.bg));
     });
   }
 });

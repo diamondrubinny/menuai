@@ -104,6 +104,9 @@ export type Effect = (typeof EFFECTS)[number];
 export const HERO_STYLES = ['classic', 'overlay', 'split'] as const;
 export type HeroStyle = (typeof HERO_STYLES)[number];
 
+export const MODES = ['original', 'alt'] as const;
+export type Mode = (typeof MODES)[number];
+
 export const PATTERNS = ['none', 'dots', 'grid', 'waves', 'terrazzo', 'arabesque', 'stripes'] as const;
 export type Pattern = (typeof PATTERNS)[number];
 
@@ -115,6 +118,7 @@ export const designSchema = z.object({
   layout: z.enum(LAYOUTS).default('list'),
   heroStyle: z.enum(HERO_STYLES).optional(),
   pattern: z.enum(PATTERNS).optional(),
+  mode: z.enum(MODES).optional(),
   palette: z.partialRecord(z.enum(PALETTE_KEYS), hexColor).default({}),
   fontDisplay: z.enum(FONT_IDS).optional(),
   fontBody: z.enum(FONT_IDS).optional(),
