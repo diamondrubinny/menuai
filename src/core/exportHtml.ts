@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import menuCss from '../styles/menu.css?raw';
@@ -10,6 +15,7 @@ import type { FontFile } from './fontFiles.generated';
 import { t } from './localize';
 import { dirOf } from './locales';
 import { luminance } from './color';
+import { BRAND, CREDIT_COMMENT } from './brand';
 
 export interface ExportOptions {
   /** Embed the needed font files as base64 (self-contained, ~100–400 KB). */
@@ -26,7 +32,8 @@ export function escapeHtml(value: string): string {
 
 export function minifyCss(css: string): string {
   return css
-    .replace(/\/\*[\s\S]*?\*\//g, '')
+    // Strip comments, but keep /*! … */ license notices (attribution).
+    .replace(/\/\*(?!!)[\s\S]*?\*\//g, '')
     .replace(/\s+/g, ' ')
     .replace(/\s*([{};,>])\s*/g, '$1')
     .replace(/;}/g, '}')
@@ -103,6 +110,7 @@ export async function exportMenuHtml(menu: Menu, options: ExportOptions): Promis
   const dark = luminance(design.palette.bg) < 0.2;
 
   return `<!doctype html>
+${CREDIT_COMMENT}
 <html lang="${escapeHtml(locale)}" dir="${dirOf(locale)}">
 <head>
 <meta charset="utf-8">
@@ -111,7 +119,7 @@ export async function exportMenuHtml(menu: Menu, options: ExportOptions): Promis
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="${dark ? 'dark' : 'light'}">
 <meta name="theme-color" content="${escapeHtml(design.palette.bg)}">
-<meta name="generator" content="MenuAI">
+<meta name="generator" content="${BRAND.name} (open source, ${BRAND.license}) ${BRAND.repo}">
 <title>${escapeHtml(title)}</title>
 ${description ? `<meta name="description" content="${escapeHtml(description)}">\n<meta property="og:description" content="${escapeHtml(description)}">\n` : ''}<meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:type" content="website">

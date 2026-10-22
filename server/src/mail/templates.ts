@@ -1,4 +1,10 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import type { Mail } from './mailer';
+import { CREDIT_LINE } from '../../../src/core/brand';
 
 /** Bilingual (Hebrew + English) plain-text email. Plain text: no HTML to escape or to be abused. */
 export function loginMail(to: string, link: string, kind: 'login' | 'invite', minutes: number): Mail {
@@ -12,6 +18,6 @@ export function loginMail(to: string, link: string, kind: 'login' | 'invite', mi
   return {
     to,
     subject: kind === 'invite' ? 'הזמנה ל־MenuAI · MenuAI invitation' : 'קישור כניסה ל־MenuAI · MenuAI sign-in link',
-    text: `${he}\n${link}\n\n${en}\n${link}\n\n${note}\n`,
+    text: `${he}\n${link}\n\n${en}\n${link}\n\n${note}\n\n--\n${CREDIT_LINE}\n`,
   };
 }

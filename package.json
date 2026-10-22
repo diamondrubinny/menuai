@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p .",
     "test": "vitest run",
+    "check:attribution": "node scripts/check-attribution.mjs",
     "test:watch": "vitest",
     "test:server": "vitest run --config server/vitest.config.ts",
     "server:dev": "tsx watch server/src/main.ts",

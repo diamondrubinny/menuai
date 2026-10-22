@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+# Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+# Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
 # Installs or updates MenuAI on a Debian/Ubuntu server behind nginx.
 # Usage (on the server):  sudo DOMAIN=menu.example.com bash scripts/deploy-nginx.sh
 # Optional env: BRANCH (default: main), APP_DIR (/opt/menuai), WEB_ROOT (/var/www/menuai),

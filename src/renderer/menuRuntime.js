@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 // Progressive-enhancement runtime for a rendered menu.
 // Plain, dependency-free JS: it runs inside the editor preview AND is inlined verbatim
 // into exported HTML files (see core/exportHtml.ts), so it must stay self-contained.

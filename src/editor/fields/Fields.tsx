@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { useId, useRef, useState, type ReactNode } from 'react';
 import type { ImageRef, Localized } from '../../core/schema';
 import { getLocaleInfo } from '../../core/locales';

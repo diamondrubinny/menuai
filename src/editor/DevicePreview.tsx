@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMenuStore } from '../store/menuStore';
 import { DEVICE_SIZES, useEditorStore, type Device } from '../store/editorStore';

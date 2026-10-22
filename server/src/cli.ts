@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 // Administrative commands, run on the server itself (direct database access, no HTTP):
 //   node dist-server/cli.mjs create-owner <email> [name]   create the first owner and print a sign-in link
 //   node dist-server/cli.mjs login-link <email>            print a one-time sign-in link for an existing user
@@ -10,6 +15,7 @@ import type { SqlClient } from './db/sql';
 import {
   audit, findActiveUserByEmail, INVITE_LINK_MINUTES, issueLoginToken, LOGIN_LINK_MINUTES, loginLink, normalizeEmail,
 } from './auth/service';
+import { CREDIT_LINE } from '../../src/core/brand';
 
 export async function runCli(args: string[], db: SqlClient, publicUrl: string): Promise<{ code: number; out: string }> {
   const [command, rawEmail, ...nameParts] = args;
@@ -46,7 +52,7 @@ if (process.argv[1] && /cli\.(m?js|ts)$/.test(process.argv[1])) {
     try {
       await migrate(db);
       const { code, out } = await runCli(process.argv.slice(2), db, config.PUBLIC_URL);
-      (code === 0 ? console.log : console.error)(out);
+      (code === 0 ? console.log : console.error)(`${out}\n\n${CREDIT_LINE}`);
       process.exitCode = code;
     } finally {
       await db.close();

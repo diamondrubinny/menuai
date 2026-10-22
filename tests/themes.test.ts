@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { describe, expect, it } from 'vitest';
 import { THEMES, deriveAltPalette } from '../src/core/themes';
 import { AA_TEXT, contrastRatio, isDark } from '../src/core/color';

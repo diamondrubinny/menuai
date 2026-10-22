@@ -108,6 +108,10 @@ Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/
 - Privacy: everything stays in the user's browser; no cookies, analytics or third parties → no consent banner needed for the editor in its current form. Drafts: in-app `#/privacy`, [`docs/legal/`](docs/legal/). **Legal review required before commercial use.**
 - Accessibility target: WCAG 2.1 AA / IS 5568, verified by axe in CI on the editor, every theme and the exported file. Statement draft: in-app `#/accessibility`. Automated tests do not replace manual screen-reader testing.
 
+## Attribution
+
+MenuAI shows a **"Powered by MenuAI · Open source"** credit on every menu (preview, full-screen view, exported file, print), in the editor footer, in emails, server logs and CLI output, and every source file starts with the MenuAI license notice (preserved in built bundles as a `/*! @license */` comment). There is no setting that hides it. `npm run check:attribution` (also part of `npm test` and CI) fails if any of it is removed. Please keep it in forks and copies — see [`NOTICE`](NOTICE).
+
 ## Licenses
 
-Code: [MIT](LICENSE). Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.
+Code: [MIT](LICENSE), © 2026 Diamond Rubinny and MenuAI contributors — keep the notices in [`NOTICE`](NOTICE). Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.

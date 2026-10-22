@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
@@ -50,7 +55,11 @@ test('exported HTML is self-contained, switches languages and passes axe', async
   await page.getByRole('button', { name: /Download menu/ }).click();
   const file = await (await download).path();
   const html = await readFile(file, 'utf8');
-  expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/); // no external requests
+  // No external resource is ever loaded (fonts, images, scripts and styles are all inline)…
+  expect(html).not.toMatch(/(src|href)="https?:\/\/[^"]*"(?![^<]*<\/a>)|url\(\s*['"]?https?:|<link\b|@import/i);
+  // …and the only external address at all is the project credit link.
+  const external = new Set(html.match(/https?:\/\/[^\s"'<>)]+/g)?.filter((u) => !u.startsWith('http://www.w3.org')));
+  expect([...external]).toEqual(['https://github.com/diamondrubinny/menuai']);
 
   const context = await browser.newContext({ locale: 'he-IL' });
   const viewer = await context.newPage();

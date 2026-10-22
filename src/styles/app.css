@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 /* ==========================================================================
    MenuAI — editor UI
    ========================================================================== */
@@ -564,6 +569,7 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
   font-size: 0.8rem;
 }
 .site-footer a { color: var(--muted); }
+.site-credit { width: 100%; text-align: center; color: var(--muted); }
 
 /* Toasts & dialog */
 .toasts {

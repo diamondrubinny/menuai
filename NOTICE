@@ -1,0 +1,21 @@
+MenuAI — open-source menu builder
+https://github.com/diamondrubinny/menuai
+
+Copyright (c) 2026 Diamond Rubinny and MenuAI contributors
+Licensed under the MIT License (see LICENSE).
+
+Attribution
+-----------
+MenuAI shows a "Powered by MenuAI · Open source" credit on every menu it renders
+(editor preview, full-screen view, exported files, print), in the editor footer,
+in server logs and in CLI output. Every source file carries the MenuAI license
+notice. These credits are part of the project:
+
+  * The copyright and license notices (LICENSE, this NOTICE, and the header at the
+    top of each source file) must be kept in all copies, forks and substantial
+    portions of the software, as required by the MIT License.
+  * We ask that the visible "Powered by MenuAI" credit be kept as well. The test
+    suite and CI (`npm run check:attribution`) fail if it is removed.
+
+Third-party components keep their own licenses (fonts: SIL Open Font License 1.1,
+via Fontsource; npm dependencies: see package-lock.json).
