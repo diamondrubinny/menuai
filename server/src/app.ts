@@ -5,11 +5,15 @@ import rateLimit from '@fastify/rate-limit';
 import cookie from '@fastify/cookie';
 import type { Config } from './config';
 import type { SqlClient } from './db/sql';
-import { HttpError } from './errors';
+import { forbidden, HttpError } from './errors';
+import type { Mailer } from './mail/mailer';
+import { authRoutes } from './auth/routes';
+import { userRoutes } from './users/routes';
 
 export interface AppDeps {
   config: Config;
   db: SqlClient;
+  mailer: Mailer;
   /** Where logs go (default stdout). Redaction always applies, whatever the destination. */
   logStream?: Writable;
 }
@@ -77,6 +81,17 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setNotFoundHandler({ preHandler: app.rateLimit() }, (_req, reply) => reply.status(404).send({ error: 'not_found' }));
 
   // Rate-limited like every route: it touches the database, so it must not be a free amplifier.
+  // CSRF defense in depth (on top of SameSite=Strict cookies): data-changing requests must come
+  // from our own origin. Browsers always send Origin on POST/PUT/PATCH/DELETE.
+  const allowedOrigin = new URL(config.PUBLIC_URL).origin;
+  app.addHook('onRequest', async (req) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+    if (req.headers.origin !== allowedOrigin) throw forbidden();
+  });
+
+  await app.register(authRoutes);
+  await app.register(userRoutes);
+
   app.get('/api/health', async (_req, reply) => {
     try {
       await deps.db.query('SELECT 1');

@@ -686,3 +686,13 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 .pair-display { font-size: 1.45rem; line-height: 1.1; font-weight: 700; }
 .pair-body { font-size: 0.85rem; color: var(--muted); }
 .pair-name { font-size: 0.75rem; font-weight: 700; margin-top: 0.2rem; }
+
+/* Login */
+.login-form { display: grid; gap: 0.9rem; max-width: 420px; margin-top: 1rem; }
+.notice { padding: 0.7rem 0.9rem; border-radius: 10px; font-weight: 600; }
+.notice-success { background: color-mix(in srgb, var(--success) 14%, var(--panel)); color: var(--text); border: 1px solid var(--success); }
+.notice-error { background: color-mix(in srgb, var(--danger) 10%, var(--panel)); color: var(--text); border: 1px solid var(--danger); }
+
+/* Page headings receive focus by script only, to announce the new page to screen readers.
+   They are not interactive, so they need no focus ring (WCAG 2.4.7 covers operable controls). */
+.doc-page h1[tabindex='-1']:focus { outline: none; }

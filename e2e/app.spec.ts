@@ -126,3 +126,19 @@ test('every theme in its alternate light/dark version has no accessibility viola
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`), `${name} (alt)`).toEqual([]);
   }
 });
+
+test('login page explains when no server is installed and is accessible', async ({ page }) => {
+  await page.goto('/#/login');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in');
+  await page.getByLabel('Email address').fill('owner@example.com');
+  await page.getByRole('button', { name: 'Send me a link' }).click();
+  await expect(page.getByRole('main').getByRole('status')).toContainText('needs the MenuAI server');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+});
+
+test('a login link removes its token from the address bar even when it fails', async ({ page }) => {
+  await page.goto(`/#/login?token=${'A'.repeat(43)}`);
+  await expect(page.getByRole('main').getByRole('status')).not.toBeEmpty();
+  expect(page.url()).not.toContain('token=');
+});

@@ -2,6 +2,7 @@ import { loadConfig } from './config';
 import { createPgClient } from './db/pg';
 import { migrate } from './db/migrate';
 import { buildApp } from './app';
+import { createSmtpMailer, disabledMailer } from './mail/mailer';
 
 async function main() {
   const config = loadConfig(process.env);
@@ -10,7 +11,9 @@ async function main() {
     onError: (err) => (app ? app.log.warn({ err: err.message }, 'idle database connection lost') : undefined),
   });
   const applied = await migrate(db);
-  app = await buildApp({ config, db });
+  const mailer = config.SMTP_URL && config.MAIL_FROM ? createSmtpMailer(config.SMTP_URL, config.MAIL_FROM) : disabledMailer;
+  app = await buildApp({ config, db, mailer });
+  if (!mailer.configured) app.log.warn('SMTP_URL is not set: no emails will be sent. Owners sign in with: node dist-server/cli.mjs login-link <email>');
   if (applied.length) app.log.info({ applied }, 'database migrated');
 
   const server = app;

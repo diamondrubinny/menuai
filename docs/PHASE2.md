@@ -111,10 +111,11 @@ audit_log        (id, user_id, action, target_type, target_id, at, meta JSONB)  
 | Method | Path | גישה | הערות |
 |---|---|---|---|
 | POST | `/api/auth/request-link` | ציבורי | תמיד מחזיר אותה תשובה (לא חושף אם האימייל קיים); rate limit לפי IP ואימייל |
-| GET | `/api/auth/verify?token=` | ציבורי | טוקן חד־פעמי → יוצר סשן (עוגייה) → הפניה לעורך |
+| POST | `/api/auth/verify` | ציבורי | טוקן חד־פעמי → יוצר סשן (עוגייה). **הקישור באימייל מוביל לעמוד `#/login?token=` בעורך, שעושה POST** — סורקי אימייל (Outlook Safe Links וכו׳) „לוחצים” על קישורים אוטומטית ב־GET ולא היו שורפים את הקישור; והטוקן אחרי `#` לא נשלח לשרת ולא נרשם בלוגים |
 | POST | `/api/auth/sign-out` | מחובר | מבטל את הסשן |
 | GET | `/api/me` | מחובר | משתמש ותפקיד |
-| GET/POST/PATCH/DELETE | `/api/users` | owner | הזמנה (שולחת קישור), שינוי תפקיד, השבתה |
+| GET/POST/PATCH | `/api/users`, `/api/users/:id` | owner | הזמנה (שולחת קישור; בלי SMTP — מחזירה אותו לבעלים), שינוי תפקיד, השבתה (מנתקת מיד את כל הסשנים). אי אפשר להשאיר את העסק בלי בעלים פעיל |
+| POST | `/api/users/:id/invite` | owner | שליחה חוזרת של קישור |
 | GET/POST | `/api/menus` | viewer / editor | |
 | GET/PUT/DELETE | `/api/menus/:id` | viewer / editor / owner | PUT עם `If-Match: draft_version`; ולידציית zod משותפת |
 | GET | `/api/menus/:id/versions` | viewer | |
@@ -125,7 +126,7 @@ audit_log        (id, user_id, action, target_type, target_id, at, meta JSONB)  
 | GET | `/api/health` | ציבורי | בדיקת חיים (ללא מידע פנימי) |
 | GET | `/m/:publicSlug` | **ציבורי** | קובץ סטטי מ־nginx |
 
-**התקנה ראשונה:** `docker compose exec api node dist/cli.js create-owner you@example.com` → יוצר בעלים ומדפיס קישור כניסה חד־פעמי (לשימוש גם כשאין עדיין SMTP).
+**התקנה ראשונה:** `docker compose exec api node dist-server/cli.mjs create-owner you@example.com` → יוצר בעלים ומדפיס קישור כניסה חד־פעמי (לשימוש גם כשאין עדיין SMTP).
 
 ## 8. Threat Model
 
@@ -134,7 +135,7 @@ audit_log        (id, user_id, action, target_type, target_id, at, meta JSONB)  
 | חשבונות | השתלטות דרך תיבת אימייל / יירוט קישור | גבוה | קישור חד־פעמי, תוקף 15 דק׳, מגובב במסד, rate limit; קישור שכבר נוצל נדחה; התראה על כניסה חדשה |
 | חשבונות | ספאם / שימוש לרעה בשליחת קישורים | בינוני | אין הרשמה ציבורית: קישור נשלח רק לאימייל של משתמש קיים; תשובה אחידה; rate limit |
 | הרשאות | עורך/צופה מבצע פעולת בעלים | גבוה | `requireRole` בכל endpoint בשרת; בדיקות אוטומטיות לכל תפקיד × endpoint |
-| סשן | גניבת עוגייה / CSRF | בינוני | HttpOnly+Secure+SameSite, בדיקת Origin בבקשות שמשנות מידע |
+| סשן | גניבת עוגייה / CSRF | בינוני | HttpOnly+Secure+SameSite=Strict, Path=/api; כל בקשה שמשנה מידע חייבת `Origin` זהה לכתובת האתר (אחרת 403) |
 | תפריט מפורסם | XSS בתוכן | בינוני | אותו מנוע ייצוא (escape + CSP עם hash) + ולידציית zod בשרת |
 | העלאות | נוזקה / polyglot / SVG | גבוה | רשימת סוגים מותרים, בדיקת magic bytes, הסגר → ClamAV → re-encode ב־sharp → שחרור; קבצים מחוץ לתיקיית web, שם אקראי |
 | השרת | SSRF | נמוך | השרת לא מוריד כתובות שמשתמשים מזינים (תמונות חיצוניות נשארות קישור בצד האורח) |
@@ -162,7 +163,7 @@ audit_log        (id, user_id, action, target_type, target_id, at, meta JSONB)  
 | שלב | תוכן | תוצאה |
 |---|---|---|
 | **2א** ✅ | תשתית: Docker Compose, Postgres, Fastify, migrations, בדיקות, CI | שרת עולה ועובר בדיקות |
-| **2ב** | קישורי קסם, סשנים, משתמשים ותפקידים, פקודת יצירת בעלים, בדיקות הרשאות | התחברות מאובטחת |
+| **2ב** ✅ | קישורי קסם, סשנים, משתמשים ותפקידים, פקודת יצירת בעלים, בדיקות הרשאות | התחברות מאובטחת |
 | **2ג** | סנכרון העורך לענן (שמירה אוטומטית, נעילה אופטימית, ייבוא מתפריט מקומי) | עריכה מכל מכשיר |
 | **2ד** | פרסום לכתובת קבועה + QR אוטומטי + היסטוריה ושחזור | "פרסום" בלחיצה |
 | **2ה** | העלאות עם הסגר ו־ClamAV | תמונות בטוחות בענן |

@@ -24,9 +24,15 @@ function cspPlugin(): Plugin {
   };
 }
 
+// Local development: forward /api to the MenuAI server (npm run server:dev) so the editor and
+// the API share one origin, exactly like production behind nginx.
+const apiProxy = { '/api': { target: process.env.MENUAI_API_URL ?? 'http://127.0.0.1:3000', changeOrigin: false } };
+
 export default defineConfig({
   plugins: [react(), cspPlugin()],
   base: './',
+  server: { proxy: apiProxy },
+  preview: { proxy: apiProxy },
   build: {
     target: 'es2022',
     sourcemap: false,

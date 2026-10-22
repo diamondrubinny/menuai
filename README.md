@@ -38,17 +38,24 @@ Requirements: Node.js ≥ 20. No environment variables or secrets are needed (se
 
 ## Server (Phase 2 — in progress)
 
-Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Step 2a (infrastructure) is done: Fastify API, PostgreSQL with SQL migrations, hardened headers, rate limiting, safe logging, Docker Compose.
+Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Done so far: 2a infrastructure (Fastify API, PostgreSQL migrations, hardened headers, rate limiting, safe logging, Docker Compose) and 2b accounts (magic-link sign-in, sessions, owner/editor/viewer roles, CLI).
 
 ```bash
 cp .env.example .env          # fill in PUBLIC_URL and POSTGRES_PASSWORD
 docker compose up -d --build  # Postgres + API on 127.0.0.1:3000
 curl http://127.0.0.1:3000/api/health
+
+# Create the first owner — prints a one-time sign-in link (works before email is set up):
+docker compose exec api node dist-server/cli.mjs create-owner you@example.com "Your Name"
+# Later, a fresh sign-in link for any active user:
+docker compose exec api node dist-server/cli.mjs login-link you@example.com
 ```
+
+Sign-in is passwordless: a one-time link (15 minutes) is emailed via any SMTP provider (`SMTP_URL` in `.env`). Team roles: **owner** (manages users), **editor**, **viewer** — invitations come from the owner; there is no public sign-up.
 
 | Command | Purpose |
 |---|---|
-| `npm run server:dev` | API with auto-reload (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`) |
+| `npm run server:dev` | API with auto-reload (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`); `npm run dev` proxies `/api` to it |
 | `npm run test:server` | API tests against an in-process Postgres (PGlite) — no Docker needed |
 | `npm run server:build` / `server:start` | Production bundle |
 
