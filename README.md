@@ -38,17 +38,24 @@ Requirements: Node.js ≥ 20. No environment variables or secrets are needed (se
 
 ## Server (Phase 2 — in progress)
 
-Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Step 2a (infrastructure) is done: Fastify API, PostgreSQL with SQL migrations, hardened headers, rate limiting, safe logging, Docker Compose.
+Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Done so far: 2a infrastructure (Fastify API, PostgreSQL migrations, hardened headers, rate limiting, safe logging, Docker Compose) and 2b accounts (magic-link sign-in, sessions, owner/editor/viewer roles, CLI).
 
 ```bash
 cp .env.example .env          # fill in PUBLIC_URL and POSTGRES_PASSWORD
 docker compose up -d --build  # Postgres + API on 127.0.0.1:3000
 curl http://127.0.0.1:3000/api/health
+
+# Create the first owner — prints a one-time sign-in link (works before email is set up):
+docker compose exec api node dist-server/cli.mjs create-owner you@example.com "Your Name"
+# Later, a fresh sign-in link for any active user:
+docker compose exec api node dist-server/cli.mjs login-link you@example.com
 ```
+
+Sign-in is passwordless: a one-time link (15 minutes) is emailed via any SMTP provider (`SMTP_URL` in `.env`). Team roles: **owner** (manages users), **editor**, **viewer** — invitations come from the owner; there is no public sign-up.
 
 | Command | Purpose |
 |---|---|
-| `npm run server:dev` | API with auto-reload (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`) |
+| `npm run server:dev` | API with auto-reload (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`); `npm run dev` proxies `/api` to it |
 | `npm run test:server` | API tests against an in-process Postgres (PGlite) — no Docker needed |
 | `npm run server:build` / `server:start` | Production bundle |
 
@@ -101,6 +108,10 @@ Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/
 - Privacy: everything stays in the user's browser; no cookies, analytics or third parties → no consent banner needed for the editor in its current form. Drafts: in-app `#/privacy`, [`docs/legal/`](docs/legal/). **Legal review required before commercial use.**
 - Accessibility target: WCAG 2.1 AA / IS 5568, verified by axe in CI on the editor, every theme and the exported file. Statement draft: in-app `#/accessibility`. Automated tests do not replace manual screen-reader testing.
 
+## Attribution
+
+MenuAI shows a **"Powered by MenuAI · Open source"** credit on every menu (preview, full-screen view, exported file, print), in the editor footer, in emails, server logs and CLI output, and every source file starts with the MenuAI license notice (preserved in built bundles as a `/*! @license */` comment). There is no setting that hides it. `npm run check:attribution` (also part of `npm test` and CI) fails if any of it is removed. Keeping it is a license requirement (AGPL-3.0 Section 7(b) terms in [`NOTICE`](NOTICE)).
+
 ## Licenses
 
-Code: [MIT](LICENSE). Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.
+Code: [GNU AGPL-3.0-only](LICENSE) with **additional attribution terms** (Section 7) in [`NOTICE`](NOTICE), © 2026 Diamond Rubinny and MenuAI contributors. You may use, modify and redistribute MenuAI freely; if you run a modified version as a network service, you must offer its source to its users; and the "Powered by MenuAI · Open source" credit and the license notices must be kept. Versions published before this change remain available under MIT. Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.

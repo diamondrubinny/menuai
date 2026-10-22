@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { HERO_STYLES, PATTERNS, THEME_IDS } from './schema';
 import { ensureContrast, hexToHsl, isDark, mix } from './color';
 import type { Design, Effect, FontId, HeroStyle, Layout, Mode, PaletteKey, Pattern, ThemeId } from './schema';

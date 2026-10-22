@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { useEffect, type ReactNode } from 'react';
 import { useT } from '../i18n/ui';
 import { REPO_URL } from './SiteFooter';
@@ -5,13 +10,13 @@ import { REPO_URL } from './SiteFooter';
 const UPDATED = '2026-10-22';
 
 function DocShell({ children, lang }: { children: ReactNode; lang: string }) {
-  const { t } = useT();
+  const { t, dir } = useT();
   useEffect(() => {
     document.getElementById('main')?.focus();
   }, []);
   return (
     <main className="doc-page" id="main" tabIndex={-1} lang={lang} dir={lang === 'he' ? 'rtl' : 'ltr'}>
-      <p><a href="#/">← {t('backToEditor')}</a></p>
+      <p><a href="#/"><span aria-hidden="true">{dir === 'rtl' ? '→' : '←'}</span> {t('backToEditor')}</a></p>
       <p className="draft-notice" role="note">{t('draftNotice')}</p>
       {children}
     </main>

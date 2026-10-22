@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { useEffect } from 'react';
 import { useRoute } from './router';
 import { useT } from './i18n/ui';
@@ -6,6 +11,7 @@ import { ConfirmHost, Toasts } from './editor/Feedback';
 import { ViewPage } from './pages/ViewPage';
 import { AccessibilityPage, PrivacyPage } from './pages/DocPages';
 import { NotFound } from './pages/NotFound';
+import { LoginPage } from './pages/LoginPage';
 
 export function App() {
   const route = useRoute();
@@ -32,6 +38,9 @@ export function App() {
       break;
     case '/privacy':
       page = <PrivacyPage />;
+      break;
+    case '/login':
+      page = <LoginPage route={route} />;
       break;
     default:
       page = <NotFound />;

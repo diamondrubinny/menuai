@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { testApp, testDb } from './helpers';
@@ -5,6 +10,7 @@ import { loadConfig } from '../src/config';
 import { migrate } from '../src/db/migrate';
 import { HttpError } from '../src/errors';
 import { buildApp } from '../src/app';
+import { captureMailer, ORIGIN } from './helpers';
 import type { SqlClient } from '../src/db/sql';
 
 let app: FastifyInstance | undefined;
@@ -85,7 +91,7 @@ describe('http basics', () => {
 
   it('hides internal errors and maps safe ones', async () => {
     const db = await testDb();
-    const instance = await buildApp({ config: (await testApp({ db })).config, db });
+    const instance = await buildApp({ config: (await testApp({ db })).config, db, mailer: captureMailer() });
     instance.get('/boom', async () => { throw new Error('SELECT * FROM secrets failed at /srv/app.ts:12'); });
     instance.get('/denied', async () => { throw new HttpError(403, 'forbidden'); });
     app = instance;
@@ -107,10 +113,10 @@ describe('http basics', () => {
 
   it('rejects oversized bodies', async () => {
     const db = await testDb();
-    const instance = await buildApp({ config: (await testApp({ db })).config, db });
+    const instance = await buildApp({ config: (await testApp({ db })).config, db, mailer: captureMailer() });
     instance.post('/echo', async (req) => req.body);
     app = instance;
-    const res = await app.inject({ method: 'POST', url: '/echo', payload: { x: 'a'.repeat(1_100_000) } });
+    const res = await app.inject({ method: 'POST', url: '/echo', headers: { origin: ORIGIN }, payload: { x: 'a'.repeat(1_100_000) } });
     expect(res.statusCode).toBe(413);
   });
 

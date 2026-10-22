@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Open-source multilingual, designer-grade, responsive menu builder.",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,11 @@
     "preview": "vite preview",
     "typecheck": "tsc -p .",
     "test": "vitest run",
+    "check:attribution": "node scripts/check-attribution.mjs",
     "test:watch": "vitest",
     "test:server": "vitest run --config server/vitest.config.ts",
     "server:dev": "tsx watch server/src/main.ts",
-    "server:build": "esbuild server/src/main.ts --bundle --platform=node --target=node20 --format=esm --external:pg-native --sourcemap --outfile=dist-server/main.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "server:build": "esbuild server/src/main.ts server/src/cli.ts --bundle --platform=node --target=node20 --format=esm --external:pg-native --sourcemap --outdir=dist-server --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "server:start": "node --enable-source-maps dist-server/main.mjs",
     "test:e2e": "playwright test",
     "audit:deps": "npm audit --omit=dev"

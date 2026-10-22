@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { defineConfig, type Plugin } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
@@ -24,9 +29,15 @@ function cspPlugin(): Plugin {
   };
 }
 
+// Local development: forward /api to the MenuAI server (npm run server:dev) so the editor and
+// the API share one origin, exactly like production behind nginx.
+const apiProxy = { '/api': { target: process.env.MENUAI_API_URL ?? 'http://127.0.0.1:3000', changeOrigin: false } };
+
 export default defineConfig({
   plugins: [react(), cspPlugin()],
   base: './',
+  server: { proxy: apiProxy },
+  preview: { proxy: apiProxy },
   build: {
     target: 'es2022',
     sourcemap: false,

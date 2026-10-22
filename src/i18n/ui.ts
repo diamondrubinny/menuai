@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { create } from 'zustand';
 import { loadPrefs, savePrefs } from '../core/storage';
 
@@ -205,10 +210,22 @@ const en = {
   saveUnavailable: 'This browser blocks local storage — changes will be lost when you close the page. Export a backup.',
   accessibility: 'Accessibility statement',
   privacy: 'Privacy',
-  sourceCode: 'Open source (MIT)',
+  sourceCode: 'Source code (AGPL-3.0)',
   backToEditor: 'Back to editor',
   notFound: 'Page not found',
   notFoundText: 'The page you were looking for does not exist.',
+  loginTitle: 'Sign in',
+  loginHint: 'Enter your email address and we will send you a one-time sign-in link. No password needed.',
+  loginEmail: 'Email address',
+  loginSend: 'Send me a link',
+  loginSent: 'If this address belongs to a team member, a sign-in link is on its way. It is valid for 15 minutes.',
+  loginVerifying: 'Signing you in…',
+  loginSuccess: 'You are signed in as {email}.',
+  loginLinkInvalid: 'This link is invalid, already used or expired. Request a new one below.',
+  loginNoServer: 'Sign-in needs the MenuAI server, which is not installed on this site. The editor still works without an account.',
+  loginTooMany: 'Too many attempts. Please wait a minute and try again.',
+  loginBadEmail: 'Please enter a valid email address.',
+  loginFailed: 'Sign-in failed. Please try again.',
   draftNotice: 'Draft — requires professional review before publication.',
 };
 
@@ -419,10 +436,22 @@ const he: Dict = {
   saveUnavailable: 'הדפדפן חוסם שמירה מקומית, והשינויים יאבדו כשתסגרו את הדף. ייצאו גיבוי.',
   accessibility: 'הצהרת נגישות',
   privacy: 'פרטיות',
-  sourceCode: 'קוד פתוח (MIT)',
+  sourceCode: 'קוד המקור (AGPL-3.0)',
   backToEditor: 'חזרה לעורך',
   notFound: 'הדף לא נמצא',
   notFoundText: 'הדף שחיפשתם אינו קיים.',
+  loginTitle: 'כניסה',
+  loginHint: 'הזינו את כתובת האימייל שלכם ונשלח אליה קישור כניסה חד־פעמי. אין צורך בסיסמה.',
+  loginEmail: 'כתובת אימייל',
+  loginSend: 'שלחו לי קישור',
+  loginSent: 'אם הכתובת שייכת לחבר/ת צוות, קישור כניסה כבר בדרך. הוא תקף ל־15 דקות.',
+  loginVerifying: 'מתחברים…',
+  loginSuccess: 'התחברתם בתור {email}.',
+  loginLinkInvalid: 'הקישור אינו תקף, כבר נוצל או שפג תוקפו. אפשר לבקש קישור חדש למטה.',
+  loginNoServer: 'הכניסה דורשת את שרת MenuAI, שאינו מותקן באתר הזה. העורך ממשיך לעבוד גם בלי חשבון.',
+  loginTooMany: 'יותר מדי ניסיונות. המתינו דקה ונסו שוב.',
+  loginBadEmail: 'יש להזין כתובת אימייל תקינה.',
+  loginFailed: 'הכניסה נכשלה. נסו שוב.',
   draftNotice: 'טיוטה: המסמך מחייב בדיקה מקצועית לפני פרסום.',
 };
 
@@ -630,10 +659,22 @@ const ar: Dict = {
   saveUnavailable: 'هذا المتصفح يمنع التخزين المحلي — ستضيع التغييرات عند إغلاق الصفحة. صدّر نسخة احتياطية.',
   accessibility: 'بيان إمكانية الوصول',
   privacy: 'الخصوصية',
-  sourceCode: 'مفتوح المصدر (MIT)',
+  sourceCode: 'الشيفرة المصدرية (AGPL-3.0)',
   backToEditor: 'العودة إلى المحرر',
   notFound: 'الصفحة غير موجودة',
   notFoundText: 'الصفحة التي تبحث عنها غير موجودة.',
+  loginTitle: 'تسجيل الدخول',
+  loginHint: 'أدخل بريدك الإلكتروني وسنرسل إليك رابط دخول لمرة واحدة. لا حاجة لكلمة مرور.',
+  loginEmail: 'البريد الإلكتروني',
+  loginSend: 'أرسلوا لي رابطًا',
+  loginSent: 'إذا كان هذا العنوان لأحد أعضاء الفريق، فرابط الدخول في الطريق. صالح لمدة 15 دقيقة.',
+  loginVerifying: 'جارٍ تسجيل الدخول…',
+  loginSuccess: 'تم تسجيل دخولك باسم {email}.',
+  loginLinkInvalid: 'الرابط غير صالح أو استُخدم أو انتهت صلاحيته. اطلب رابطًا جديدًا بالأسفل.',
+  loginNoServer: 'يتطلب الدخول خادم MenuAI غير المثبت على هذا الموقع. المحرر يعمل دون حساب.',
+  loginTooMany: 'محاولات كثيرة. انتظر دقيقة وحاول مرة أخرى.',
+  loginBadEmail: 'يرجى إدخال بريد إلكتروني صالح.',
+  loginFailed: 'فشل تسجيل الدخول. حاول مرة أخرى.',
   draftNotice: 'مسودة — تتطلب مراجعة مهنية قبل النشر.',
 };
 

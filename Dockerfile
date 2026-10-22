@@ -1,4 +1,7 @@
 # syntax=docker/dockerfile:1
+# MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+# Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+# Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
 # MenuAI API server. The editor itself is static and is served by nginx from dist/.
 
 FROM node:22-alpine AS build

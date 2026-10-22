@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFile } from 'node:fs/promises';
@@ -50,7 +55,11 @@ test('exported HTML is self-contained, switches languages and passes axe', async
   await page.getByRole('button', { name: /Download menu/ }).click();
   const file = await (await download).path();
   const html = await readFile(file, 'utf8');
-  expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/); // no external requests
+  // No external resource is ever loaded (fonts, images, scripts and styles are all inline)…
+  expect(html).not.toMatch(/(src|href)="https?:\/\/[^"]*"(?![^<]*<\/a>)|url\(\s*['"]?https?:|<link\b|@import/i);
+  // …and the only external address at all is the project credit link.
+  const external = new Set(html.match(/https?:\/\/[^\s"'<>)]+/g)?.filter((u) => !u.startsWith('http://www.w3.org')));
+  expect([...external]).toEqual(['https://github.com/diamondrubinny/menuai']);
 
   const context = await browser.newContext({ locale: 'he-IL' });
   const viewer = await context.newPage();
@@ -125,4 +134,20 @@ test('every theme in its alternate light/dark version has no accessibility viola
     const name = await cards.nth(i).innerText();
     expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`), `${name} (alt)`).toEqual([]);
   }
+});
+
+test('login page explains when no server is installed and is accessible', async ({ page }) => {
+  await page.goto('/#/login');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in');
+  await page.getByLabel('Email address').fill('owner@example.com');
+  await page.getByRole('button', { name: 'Send me a link' }).click();
+  await expect(page.getByRole('main').getByRole('status')).toContainText('needs the MenuAI server');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+});
+
+test('a login link removes its token from the address bar even when it fails', async ({ page }) => {
+  await page.goto(`/#/login?token=${'A'.repeat(43)}`);
+  await expect(page.getByRole('main').getByRole('status')).not.toBeEmpty();
+  expect(page.url()).not.toContain('token=');
 });

@@ -1,3 +1,8 @@
+/*! @license
+ * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+ * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+ */
 import type { CSSProperties } from 'react';
 import type { Item, Menu, Section } from '../core/schema';
 import { resolveDesign } from '../core/themes';
@@ -7,6 +12,7 @@ import { label } from '../core/labels';
 import { formatPrice } from '../core/format';
 import { getLocaleInfo } from '../core/locales';
 import { isDark } from '../core/color';
+import { BRAND, creditText } from '../core/brand';
 import { ChiliIcon, OrnamentSvg, TagIcon } from './icons';
 
 export interface MenuRendererProps {
@@ -48,6 +54,7 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
   const tx = (v: Menu['title']) => t(v, locale, fb);
   const lb = (k: Parameters<typeof label>[2]) => label(menu, locale, k);
   const info = getLocaleInfo(locale);
+  const credit = creditText(locale);
 
   const style = {
     '--ma-bg': palette.bg,
@@ -293,12 +300,19 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
         )}
       </main>
 
-      {(footer || effects.ornaments) && (
-        <footer className="ma-footer">
-          {effects.ornaments && <OrnamentSvg kind={theme.ornament === 'none' ? 'dots' : theme.ornament} />}
-          {footer && <p>{footer}</p>}
-        </footer>
-      )}
+      <footer className="ma-footer">
+        {effects.ornaments && <OrnamentSvg kind={theme.ornament === 'none' ? 'dots' : theme.ornament} />}
+        {footer && <p>{footer}</p>}
+        {/* Attribution: always rendered, not configurable (see core/brand.ts and NOTICE). */}
+        <p className="ma-credit" data-ma-credit="">
+          {credit.poweredBy}{' '}
+          <a href={BRAND.repo} target="_blank" rel="noopener noreferrer" lang="en" dir="ltr">
+            {BRAND.name}
+          </a>
+          {' · '}
+          {credit.openSource}
+        </p>
+      </footer>
     </div>
   );
 }
