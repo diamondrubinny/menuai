@@ -50,6 +50,35 @@ interface CloudMenuFull extends Omit<CloudMenuSummary, 'title'> {
   draft: unknown;
 }
 
+export interface Publication {
+  publicSlug: string;
+  url: string;
+  versionId: string;
+  version: number;
+  publishedAt: string;
+  publishedBy: string | null;
+}
+
+export interface PublishedVersion {
+  id: string;
+  version: number;
+  note: string;
+  createdAt: string;
+  createdBy: string | null;
+  live: boolean;
+}
+
+/** Publish state of the linked menu; `null` until loaded. */
+export interface History {
+  menuId: string;
+  publication: Publication | null;
+  versions: PublishedVersion[];
+}
+
+export type PublishResult =
+  | { ok: true; publication: Publication }
+  | { ok: false; reason: 'notSynced' | 'changed' | 'forbidden' | 'failed' };
+
 export interface CloudState {
   connection: Connection;
   user: ApiUser | null;
@@ -57,6 +86,7 @@ export interface CloudState {
   status: SyncStatus;
   conflict: ConflictInfo | null;
   lastSyncedAt: number | null;
+  history: History | null;
 }
 
 export interface SyncDeps {
@@ -91,6 +121,13 @@ export interface CloudSync {
   open: (menuId: string) => Promise<boolean>;
   list: () => Promise<CloudMenuSummary[] | null>;
   resolveConflict: (keep: 'mine' | 'theirs') => Promise<void>;
+  /** Loads the publish state and version list of the linked menu. */
+  loadHistory: () => Promise<boolean>;
+  /** Sends pending edits, then publishes exactly the synced draft. */
+  publish: (note?: string) => Promise<PublishResult>;
+  unpublish: () => Promise<boolean>;
+  /** Copies a published version into the draft (the live menu changes only on the next publish). */
+  restore: (versionId: string) => Promise<boolean>;
   detach: () => void;
   signOut: () => Promise<void>;
   dispose: () => void;
@@ -109,6 +146,7 @@ export function createCloudSync(deps: SyncDeps): CloudSync {
     status: 'local',
     conflict: null,
     lastSyncedAt: null,
+    history: null,
   }));
   const get = store.getState;
   const set = (patch: Partial<CloudState>) => store.setState(patch);
@@ -120,6 +158,7 @@ export function createCloudSync(deps: SyncDeps): CloudSync {
   let disposed = false;
 
   function setLink(link: CloudLink | null) {
+    if (get().history && get().history!.menuId !== link?.menuId) set({ history: null });
     set({ link });
     try {
       if (link) storage?.setItem(LINK_KEY, JSON.stringify(link));
@@ -357,6 +396,71 @@ export function createCloudSync(deps: SyncDeps): CloudSync {
     await flush();
   }
 
+  async function loadHistory(): Promise<boolean> {
+    const link = get().link;
+    if (!link || get().connection !== 'ready') return false;
+    const r = await api<{ publication: Publication | null; versions: PublishedVersion[] }>(`/menus/${link.menuId}/versions`);
+    if (get().link?.menuId !== link.menuId) return false;
+    if (r.ok) {
+      set({ history: { menuId: link.menuId, publication: r.data.publication, versions: r.data.versions } });
+      return true;
+    }
+    if (handleAuthLoss(r.status)) return false;
+    if (r.status === 404 && r.error === 'not_found') unlinkDeleted();
+    return false;
+  }
+
+  async function publish(note = ''): Promise<PublishResult> {
+    await flush();
+    const link = get().link;
+    if (!link || link.dirty || get().conflict || get().connection !== 'ready') return { ok: false, reason: 'notSynced' };
+    if (!canWrite()) return { ok: false, reason: 'forbidden' };
+    const r = await api<{ publication: Publication; version: number }>(`/menus/${link.menuId}/publish`, {
+      method: 'POST',
+      body: note ? { note } : {},
+      headers: { 'if-match': `"${link.version}"` },
+    });
+    if (r.ok) {
+      await loadHistory();
+      return { ok: true, publication: r.data.publication };
+    }
+    if (handleAuthLoss(r.status)) return { ok: false, reason: 'notSynced' };
+    if (r.status === 409) {
+      // Another device saved meanwhile: pull it in (or raise a conflict) so the user sees what would go live.
+      await refresh(true);
+      return { ok: false, reason: 'changed' };
+    }
+    if (r.status === 403) return { ok: false, reason: 'forbidden' };
+    if (r.status === 404 && r.error === 'not_found') unlinkDeleted();
+    return { ok: false, reason: 'failed' };
+  }
+
+  async function unpublish(): Promise<boolean> {
+    const link = get().link;
+    if (!link) return false;
+    const r = await api(`/menus/${link.menuId}/unpublish`, { method: 'POST' });
+    if (!r.ok) {
+      handleAuthLoss(r.status);
+      return false;
+    }
+    await loadHistory();
+    return true;
+  }
+
+  async function restore(versionId: string): Promise<boolean> {
+    const link = get().link;
+    if (!link) return false;
+    clearTimeout(timer);
+    const r = await api<{ menu: CloudMenuFull }>(`/menus/${link.menuId}/restore/${versionId}`, { method: 'POST' });
+    if (!r.ok) {
+      handleAuthLoss(r.status);
+      return false;
+    }
+    if (!applyRemote(r.data.menu)) return false;
+    await loadHistory();
+    return true;
+  }
+
   function detach() {
     clearTimeout(timer);
     setLink(null);
@@ -375,7 +479,7 @@ export function createCloudSync(deps: SyncDeps): CloudSync {
     clearTimeout(timer);
   }
 
-  return { store, init, localChanged, refresh, flush, uploadCurrent, open, list, resolveConflict, detach, signOut, dispose };
+  return { store, init, localChanged, refresh, flush, uploadCurrent, open, list, resolveConflict, loadHistory, publish, unpublish, restore, detach, signOut, dispose };
 }
 
 function readLink(storage: SyncDeps['storage']): CloudLink | null {

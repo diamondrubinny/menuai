@@ -15,6 +15,8 @@ import type { Mailer } from './mail/mailer';
 import { authRoutes } from './auth/routes';
 import { userRoutes } from './users/routes';
 import { menuRoutes } from './menus/routes';
+import { publishRoutes, sendMenuNotFound } from './publish/routes';
+import { createFileStore, type PublishStore } from './publish/store';
 
 export interface AppDeps {
   config: Config;
@@ -22,6 +24,8 @@ export interface AppDeps {
   mailer: Mailer;
   /** Where logs go (default stdout). Redaction always applies, whatever the destination. */
   logStream?: Writable;
+  /** Published menu files (default: PUBLISH_DIR on disk). */
+  publishStore?: PublishStore;
 }
 
 declare module 'fastify' {
@@ -88,7 +92,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return reply.status(500).send({ error: 'internal_error' });
   });
   // Unknown routes are rate-limited too, so scanners probing random paths get throttled.
-  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (_req, reply) => reply.status(404).send({ error: 'not_found' }));
+  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (req, reply) =>
+    req.url.startsWith('/m/') ? sendMenuNotFound(reply) : reply.status(404).send({ error: 'not_found' }),
+  );
 
   // Rate-limited like every route: it touches the database, so it must not be a free amplifier.
   // CSRF defense in depth (on top of SameSite=Strict cookies): data-changing requests must come
@@ -101,7 +107,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(authRoutes);
   await app.register(userRoutes);
-  await app.register(menuRoutes);
+  const store = deps.publishStore ?? createFileStore(config.PUBLISH_DIR);
+  await app.register(menuRoutes, { store });
+  await app.register(publishRoutes, { store });
 
   app.get('/api/health', async (_req, reply) => {
     try {

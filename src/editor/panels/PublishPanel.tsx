@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useMenuStore } from '../../store/menuStore';
 import { useFeedback } from '../../store/feedbackStore';
@@ -14,7 +14,7 @@ import { createEmptyMenu, createSampleMenu } from '../../core/sample';
 import { Fieldset, Toggle } from '../fields/Fields';
 import { useEditLocale } from '../EditLocalePicker';
 import { CloudSection } from '../CloudSection';
-import { cloud } from '../../store/cloudStore';
+import { cloud, useCloud } from '../../store/cloudStore';
 
 const LARGE_EXPORT_MB = 8;
 
@@ -125,6 +125,11 @@ function QrSection() {
   const { t } = useT();
   const id = useId();
   const [url, setUrl] = useState('');
+  // The permanent address of the published menu, once there is one: the QR code never needs to change.
+  const publishedUrl = useCloud((s) => (s.history && s.history.menuId === s.link?.menuId ? s.history.publication?.url : undefined));
+  useEffect(() => {
+    if (publishedUrl) setUrl((current) => current || publishedUrl);
+  }, [publishedUrl]);
   const wrapRef = useRef<HTMLDivElement>(null);
   let valid = false;
   try {

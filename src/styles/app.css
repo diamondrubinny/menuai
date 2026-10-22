@@ -737,3 +737,33 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 .cloud-menu-list li.is-current { border-color: var(--primary); background: var(--primary-soft); }
 .cloud-menu-info { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .cloud-current { font-size: 0.8rem; font-weight: 700; color: var(--text); white-space: nowrap; }
+
+/* Publishing (Phase 2d) */
+.cloud-publish { display: grid; gap: 0.6rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.cloud-publish h3 { font-size: 0.95rem; margin: 0; }
+.cloud-live {
+  padding: 0.7rem 0.85rem; border-radius: 10px;
+  border: 1px solid var(--success); background: color-mix(in srgb, var(--success) 10%, var(--panel));
+}
+.cloud-live p { margin: 0; }
+.cloud-live-label { display: flex; align-items: center; gap: 0.45rem; font-weight: 700; font-size: 0.875rem; }
+.cloud-live-url { font-weight: 700; overflow-wrap: anywhere; margin-block: 0.2rem !important; }
+.live-dot {
+  inline-size: 0.6rem; block-size: 0.6rem; border-radius: 50%; background: var(--success);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 60%, transparent);
+  animation: live-pulse 2s ease-out infinite;
+}
+@keyframes live-pulse { to { box-shadow: 0 0 0 0.45rem transparent; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+.badge-live {
+  display: inline-block; margin-inline-start: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 800; vertical-align: middle;
+  color: var(--panel); background: var(--success);
+}
+.cloud-history summary { cursor: pointer; font-weight: 700; font-size: 0.875rem; padding-block: 0.3rem; }
+.cloud-history[open] summary { margin-bottom: 0.5rem; }
+.cloud-version-list { list-style: none; margin: 0 0 0.5rem; padding: 0; display: grid; gap: 0.4rem; }
+.cloud-version-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
+}

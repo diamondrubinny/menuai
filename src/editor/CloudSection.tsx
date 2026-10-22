@@ -3,11 +3,11 @@
  * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { cloud, useCloud } from '../store/cloudStore';
 import { useFeedback } from '../store/feedbackStore';
 import { useT, type UiKey } from '../i18n/ui';
-import type { CloudMenuSummary, SyncStatus } from '../cloud/sync';
+import type { CloudMenuSummary, PublishResult, SyncStatus } from '../cloud/sync';
 import { Fieldset } from './fields/Fields';
 
 const STATUS_KEY: Record<Exclude<SyncStatus, 'local'>, UiKey> = {
@@ -153,6 +153,7 @@ export function CloudSection() {
           {link ? (
             <>
               <p className="hint">{t('cloudLinked', { slug: link.slug })}</p>
+              <PublishControls />
               {status === 'readonly' && <p className="hint">{t('cloudReadonlyHint')}</p>}
               <div className="button-row">
                 {canWrite && (
@@ -216,5 +217,154 @@ export function CloudSection() {
         </>
       )}
     </Fieldset>
+  );
+}
+
+const PUBLISH_ERROR: Record<Exclude<PublishResult, { ok: true }>['reason'], UiKey> = {
+  notSynced: 'cloudPublishNotSynced',
+  changed: 'cloudPublishChanged',
+  forbidden: 'cloudReadonlyHint',
+  failed: 'cloudPublishFailed',
+};
+
+/** Publish to the permanent address, see what is live, browse and restore published versions. */
+function PublishControls() {
+  const { t } = useT();
+  const user = useCloud((s) => s.user);
+  const link = useCloud((s) => s.link);
+  const history = useCloud((s) => (s.history && s.history.menuId === s.link?.menuId ? s.history : null));
+  const notify = useFeedback((s) => s.notify);
+  const confirm = useFeedback((s) => s.confirm);
+  const format = useFormatDate();
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState<'publish' | 'restore' | 'unpublish' | null>(null);
+  const noteId = useId();
+  const canWrite = user?.role === 'owner' || user?.role === 'editor';
+  const isOwner = user?.role === 'owner';
+  const menuId = link?.menuId;
+
+  useEffect(() => {
+    if (menuId) void cloud.loadHistory();
+  }, [menuId]);
+
+  const publish = async () => {
+    setBusy('publish');
+    const result = await cloud.publish(note.trim());
+    setBusy(null);
+    if (result.ok) {
+      setNote('');
+      notify(t('cloudPublished'), 'success');
+    } else {
+      notify(t(PUBLISH_ERROR[result.reason]), 'error');
+    }
+  };
+
+  const unpublish = async () => {
+    if (!(await confirm(t('cloudUnpublishConfirm'), t('cloudUnpublish')))) return;
+    setBusy('unpublish');
+    const ok = await cloud.unpublish();
+    setBusy(null);
+    notify(t(ok ? 'cloudUnpublished' : 'cloudPublishFailed'), ok ? 'info' : 'error');
+  };
+
+  const restore = async (versionId: string, version: number) => {
+    if (!(await confirm(t('cloudRestoreConfirm', { version }), t('cloudRestore')))) return;
+    setBusy('restore');
+    const ok = await cloud.restore(versionId);
+    setBusy(null);
+    notify(ok ? t('cloudRestored', { version }) : t('cloudRestoreFailed'), ok ? 'success' : 'error');
+  };
+
+  const copy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      notify(t('cloudCopied'), 'success');
+    } catch {
+      notify(url, 'info');
+    }
+  };
+
+  const publication = history?.publication ?? null;
+  return (
+    <section className="cloud-publish" aria-labelledby={`${noteId}-title`}>
+      <h3 id={`${noteId}-title`}>{t('cloudPublishTitle')}</h3>
+      <div role="status" aria-live="polite">
+        {publication ? (
+          <div className="cloud-live">
+            <p className="cloud-live-label"><span className="live-dot" aria-hidden="true" /> {t('cloudLiveAt')}</p>
+            <p className="cloud-live-url"><bdi dir="ltr">{publication.url}</bdi></p>
+            <p className="hint">
+              {publication.publishedBy
+                ? t('cloudLastPublished', { version: publication.version, date: format(publication.publishedAt), name: publication.publishedBy })
+                : t('cloudLastPublishedNoName', { version: publication.version, date: format(publication.publishedAt) })}
+            </p>
+          </div>
+        ) : (
+          history && <p className="hint">{t('cloudNotLive')}</p>
+        )}
+      </div>
+      {publication && (
+        <div className="button-row">
+          <a className="btn btn-sm" href={publication.url} target="_blank" rel="noopener noreferrer">{t('cloudOpenLive')}</a>
+          <button type="button" className="btn btn-sm" onClick={() => void copy(publication.url)}>{t('cloudCopyLink')}</button>
+          {isOwner && (
+            <button type="button" className="btn btn-sm btn-ghost btn-danger-text" disabled={busy !== null} onClick={() => void unpublish()}>
+              {t('cloudUnpublish')}
+            </button>
+          )}
+        </div>
+      )}
+
+      {canWrite && (
+        <>
+          <p className="hint">{t('cloudPublishHint')}</p>
+          <div className="field">
+            <label htmlFor={noteId}>{t('cloudPublishNote')}</label>
+            <input id={noteId} type="text" maxLength={200} value={note} placeholder={t('cloudPublishNotePlaceholder')} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <button type="button" className="btn btn-primary btn-block" disabled={busy !== null} aria-busy={busy === 'publish'} onClick={() => void publish()}>
+            {busy === 'publish' ? t('cloudPublishing') : `🚀 ${t('cloudPublish')}`}
+          </button>
+        </>
+      )}
+
+      {history && (
+        <details className="cloud-history">
+          <summary>{t('cloudHistory', { count: history.versions.length })}</summary>
+          {history.versions.length === 0 ? (
+            <p className="hint">{t('cloudHistoryEmpty')}</p>
+          ) : (
+            <>
+              <ol className="cloud-version-list">
+                {history.versions.map((v) => (
+                  <li key={v.id}>
+                    <span className="cloud-menu-info">
+                      <strong>
+                        {t('cloudVersionLabel', { version: v.version })}
+                        {v.live && <span className="badge-live">{t('cloudLiveBadge')}</span>}
+                      </strong>
+                      {v.note && <span dir="auto">{v.note}</span>}
+                      <span className="hint">{v.createdBy ? t('cloudVersionBy', { date: format(v.createdAt), name: v.createdBy }) : format(v.createdAt)}</span>
+                    </span>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={busy !== null}
+                        onClick={() => void restore(v.id, v.version)}
+                        aria-label={`${t('cloudRestore')}: ${t('cloudVersionLabel', { version: v.version })}`}
+                      >
+                        {t('cloudRestore')}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              <p className="hint">{t('cloudHistoryLimit')}</p>
+            </>
+          )}
+        </details>
+      )}
+    </section>
   );
 }

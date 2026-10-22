@@ -10,6 +10,8 @@ import type { SqlClient } from '../db/sql';
 import { badRequest, conflict, HttpError, notFound } from '../errors';
 import { requireRole } from '../auth/guard';
 import { audit } from '../auth/service';
+import { publicUrl } from '../publish/routes';
+import type { PublishStore } from '../publish/store';
 
 /** Menus can embed images as data URLs until uploads land (Phase 2e), so they get a larger body limit. */
 export const MENU_BODY_LIMIT = 12 * 1024 * 1024;
@@ -29,10 +31,13 @@ interface MenuRow {
   updated_by_name: string | null;
 }
 
-const summary = (r: Omit<MenuRow, 'draft'> & { title: string | null }) => ({
+type SummaryRow = Omit<MenuRow, 'draft'> & { title: string | null; public_slug: string | null };
+
+const summary = (r: SummaryRow, publicBase: string) => ({
   id: r.id,
   slug: r.slug,
   title: r.title ?? '',
+  publicUrl: r.public_slug ? publicUrl(publicBase, r.public_slug) : null,
   draftVersion: r.draft_version,
   updatedAt: r.updated_at,
   updatedBy: r.updated_by_name,
@@ -101,8 +106,8 @@ export function parseVersionHeader(value: string | string[] | undefined): number
 
 const etag = (version: number) => `"${version}"`;
 
-export async function menuRoutes(app: FastifyInstance) {
-  const { db } = app.deps;
+export async function menuRoutes(app: FastifyInstance, opts: { store: PublishStore }) {
+  const { db, config } = app.deps;
   const viewer = requireRole('viewer');
   const editor = requireRole('editor');
   const owner = requireRole('owner');
@@ -113,13 +118,13 @@ export async function menuRoutes(app: FastifyInstance) {
   }
 
   app.get('/api/menus', { preHandler: viewer }, async () => {
-    const rows = await db.query<Omit<MenuRow, 'draft'> & { title: string | null }>(
-      `SELECT m.id, m.slug, m.draft_version, m.updated_at, u.name AS updated_by_name,
+    const rows = await db.query<SummaryRow>(
+      `SELECT m.id, m.slug, m.draft_version, m.updated_at, u.name AS updated_by_name, p.public_slug,
               m.draft->'title'->>(m.draft->>'defaultLocale') AS title
-       FROM menus m LEFT JOIN users u ON u.id = m.updated_by
+       FROM menus m LEFT JOIN users u ON u.id = m.updated_by LEFT JOIN publications p ON p.menu_id = m.id
        ORDER BY m.updated_at DESC`,
     );
-    return { menus: rows.map(summary) };
+    return { menus: rows.map((r) => summary(r, config.PUBLIC_URL)) };
   });
 
   app.post(
@@ -200,9 +205,14 @@ export async function menuRoutes(app: FastifyInstance) {
 
   app.delete('/api/menus/:id', { preHandler: owner }, async (req, reply) => {
     const id = parseId(req);
-    const [deleted] = await db.query<{ slug: string }>('DELETE FROM menus WHERE id = $1 RETURNING slug', [id]);
-    if (!deleted) throw notFound();
-    await audit(db, { userId: req.user!.id, action: 'menu.delete', targetType: 'menu', targetId: id, meta: { slug: deleted.slug } });
+    await db.transaction(async (tx) => {
+      const [pub] = await tx.query<{ public_slug: string }>('SELECT public_slug FROM publications WHERE menu_id = $1', [id]);
+      const [row] = await tx.query<{ slug: string }>('DELETE FROM menus WHERE id = $1 RETURNING slug', [id]);
+      if (!row) throw notFound();
+      await audit(tx, { userId: req.user!.id, action: 'menu.delete', targetType: 'menu', targetId: id, meta: { slug: row.slug } });
+      // A deleted menu must disappear from its public address too.
+      if (pub) await opts.store.remove(pub.public_slug);
+    });
     return reply.status(204).send();
   });
 }

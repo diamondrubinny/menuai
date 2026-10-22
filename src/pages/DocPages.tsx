@@ -123,7 +123,8 @@ export function PrivacyPage() {
           <li><strong>חשבון:</strong> כתובת אימייל, שם ותפקיד (בעלים / עורך / צפייה), לצורך כניסה והרשאות. קישורי הכניסה וההזמנה נשלחים דרך ספק האימייל שהעסק הגדיר.</li>
           <li><strong>עוגיית סשן אחת</strong> (חיונית, HttpOnly) לשמירת הכניסה, עד 30 יום או עד היציאה. אין עוגיות אחרות.</li>
           <li><strong>תפריטים בענן:</strong> כשבוחרים „שמירה בענן”, תוכן התפריט (כולל תמונות שהעליתם) נשמר בשרת, יחד עם זהות המשתמש שעדכן אותו לאחרונה ומועד העדכון.</li>
-          <li><strong>יומן אבטחה</strong> של פעולות רגישות (כניסות, הזמנות, יצירה ומחיקה של תפריטים), ללא תוכן התפריט.</li>
+          <li><strong>יומן אבטחה</strong> של פעולות רגישות (כניסות, הזמנות, יצירה, פרסום ומחיקה של תפריטים), ללא תוכן התפריט.</li>
+          <li><strong>תפריטים מפורסמים</strong> (כתובת <code>/m/…</code>): האורחים לא מקבלים עוגיות, והשרת לא רושם את הביקורים שלהם ביומן.</li>
         </ul>
         <p>לבקשות גישה, תיקון או מחיקה של מידע שבשרת — פנו לבעלים של העסק שמפעיל את האתר.</p>
         <h2>תפריטים שאתם מפרסמים</h2>
@@ -156,7 +157,8 @@ export function PrivacyPage() {
         <li><strong>Account:</strong> email address, name and role (owner / editor / viewer), used for sign-in and permissions. Sign-in and invitation links are sent through the email provider the business configured.</li>
         <li><strong>One session cookie</strong> (essential, HttpOnly) keeps you signed in for up to 30 days or until you sign out. No other cookies.</li>
         <li><strong>Cloud menus:</strong> when you choose “Save to cloud”, the menu content (including uploaded images) is stored on the server, together with who last updated it and when.</li>
-        <li><strong>A security log</strong> of sensitive actions (sign-ins, invitations, creating and deleting menus), without menu content.</li>
+        <li><strong>A security log</strong> of sensitive actions (sign-ins, invitations, creating, publishing and deleting menus), without menu content.</li>
+        <li><strong>Published menus</strong> (<code>/m/…</code> addresses): guests get no cookies, and the server does not log their visits.</li>
       </ul>
       <p>For access, correction or deletion of data on the server, contact the owner of the business that runs this site.</p>
       <h2>Menus you publish</h2>

@@ -20,6 +20,8 @@ class FakeServer {
   draft: Menu = createSampleMenu();
   exists = true;
   calls: string[] = [];
+  published: { version: number; draft: Menu } | null = null;
+  versions: { id: string; version: number; draft: Menu }[] = [];
 
   api = async <T,>(path: string, init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<ApiResult<T>> => {
     const method = init.method ?? 'GET';
@@ -38,6 +40,33 @@ class FakeServer {
       this.version = 1;
       this.draft = (init.body as { menu: Menu }).menu;
       return ok({ menu: full() }, 201);
+    }
+    const publication = () =>
+      this.published && { publicSlug: 'lumiere', url: 'https://menu.example.com/m/lumiere', versionId: `v${this.published.version}`, version: this.published.version, publishedAt: '2026-10-22T10:00:00Z', publishedBy: 'Dana' };
+    if (path === `/menus/${MENU_ID}/publish` && method === 'POST') {
+      if (this.role === 'viewer') return fail(403, 'forbidden');
+      if (init.headers?.['if-match'] !== `"${this.version}"`) return fail(409, 'version_conflict', { error: 'version_conflict', draftVersion: this.version });
+      const version = this.versions.length + 1;
+      this.versions.unshift({ id: `v${version}`, version, draft: this.draft });
+      this.published = { version, draft: this.draft };
+      return ok({ publication: publication(), version });
+    }
+    if (path === `/menus/${MENU_ID}/versions`) {
+      return ok({ publication: publication(), versions: this.versions.map((v) => ({ id: v.id, version: v.version, note: '', createdAt: '2026-10-22T10:00:00Z', createdBy: 'Dana', live: this.published?.version === v.version })) });
+    }
+    if (path === `/menus/${MENU_ID}/unpublish`) {
+      if (!this.published) return fail(404, 'not_found');
+      this.published = null;
+      return ok(null, 204);
+    }
+    const restore = /^\/menus\/[^/]+\/restore\/(.+)$/.exec(path);
+    if (restore && method === 'POST') {
+      const v = this.versions.find((x) => x.id === restore[1]);
+      if (!v) return fail(404, 'not_found');
+      if (this.role !== 'owner') return fail(403, 'forbidden');
+      this.version += 1;
+      this.draft = v.draft;
+      return ok({ menu: full() });
     }
     if (path === `/menus/${MENU_ID}`) {
       if (!this.exists) return fail(404, 'not_found');
@@ -320,5 +349,78 @@ describe('cloud sync — open, detach, sign-out', () => {
     await sync.signOut();
     expect(state()).toMatchObject({ connection: 'signedOut', user: null });
     expect(server.calls).toContain('POST /auth/sign-out');
+  });
+});
+
+describe('cloud sync — publishing', () => {
+  it('sends pending edits first, then publishes exactly the synced version', async () => {
+    linkTo(1);
+    await makeSync().init();
+    edit('Ready for guests');
+    const result = await sync.publish('Opening');
+    expect(result).toMatchObject({ ok: true, publication: { url: 'https://menu.example.com/m/lumiere', version: 1 } });
+    expect(server.published!.draft.title.en).toBe('Ready for guests');
+    const calls = server.calls.filter((c) => c.startsWith('PUT') || c.includes('/publish'));
+    expect(calls).toEqual([`PUT /menus/${MENU_ID}`, `POST /menus/${MENU_ID}/publish`]);
+    expect(state().history).toMatchObject({ menuId: MENU_ID, publication: { version: 1 }, versions: [{ version: 1, live: true }] });
+  });
+
+  it('does not publish stale content while offline', async () => {
+    linkTo(1);
+    await makeSync().init();
+    server.down = true;
+    edit('Offline');
+    expect(await sync.publish()).toEqual({ ok: false, reason: 'notSynced' });
+    expect(server.published).toBeNull();
+  });
+
+  it('pulls in a newer draft from another device instead of publishing over it', async () => {
+    linkTo(1);
+    await makeSync().init();
+    const realApi = server.api;
+    // Another device saves right between our sync and our publish.
+    server.api = async (path, init) => {
+      if (path.endsWith('/publish')) server.remoteEdit('Phone version');
+      server.api = realApi;
+      return realApi(path, init);
+    };
+    makeSync();
+    await sync.init();
+    expect(await sync.publish()).toEqual({ ok: false, reason: 'changed' });
+    expect(server.published).toBeNull();
+    expect(menu.title.en).toBe('Phone version');
+  });
+
+  it('refuses for viewers', async () => {
+    server.role = 'viewer';
+    linkTo(1);
+    await makeSync().init();
+    expect(await sync.publish()).toEqual({ ok: false, reason: 'forbidden' });
+  });
+
+  it('restores a version into the editor and unpublishes', async () => {
+    server.role = 'owner';
+    linkTo(1);
+    await makeSync().init();
+    await sync.publish();
+    edit('Second');
+    await sync.publish();
+    expect(menu.title.en).toBe('Second');
+    await sync.loadHistory();
+    const first = state().history!.versions.find((v) => v.version === 1)!;
+    expect(await sync.restore(first.id)).toBe(true);
+    expect(menu.title.en).not.toBe('Second');
+    expect(state().link).toMatchObject({ dirty: false, version: server.version });
+    expect(await sync.unpublish()).toBe(true);
+    expect(state().history!.publication).toBeNull();
+  });
+
+  it('forgets the history of a menu after detaching', async () => {
+    linkTo(1);
+    await makeSync().init();
+    await sync.publish();
+    expect(state().history).not.toBeNull();
+    sync.detach();
+    expect(state().history).toBeNull();
   });
 });

@@ -38,7 +38,7 @@ Requirements: Node.js ≥ 20. No environment variables or secrets are needed (se
 
 ## Server (Phase 2 — in progress)
 
-Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Done so far: 2a infrastructure (Fastify API, PostgreSQL migrations, hardened headers, rate limiting, safe logging, Docker Compose), 2b accounts (magic-link sign-in, sessions, owner/editor/viewer roles, CLI) and 2c cloud sync ([`docs/PHASE2C.md`](docs/PHASE2C.md)): **Publish → Cloud** saves the local menu to the server in one click, then every edit autosaves; open the same menu on any device; optimistic locking (`If-Match` → 409) means two devices never overwrite each other silently — you choose which version to keep.
+Optional self-hosted server for cloud saving, team accounts (magic-link login) and permanent menu URLs. Spec: [`docs/PHASE2.md`](docs/PHASE2.md). Done so far: 2a infrastructure (Fastify API, PostgreSQL migrations, hardened headers, rate limiting, safe logging, Docker Compose), 2b accounts (magic-link sign-in, sessions, owner/editor/viewer roles, CLI) and 2c cloud sync ([`docs/PHASE2C.md`](docs/PHASE2C.md)): **Publish → Cloud** saves the local menu to the server in one click, then every edit autosaves; open the same menu on any device; optimistic locking (`If-Match` → 409) means two devices never overwrite each other silently — you choose which version to keep. 2d publishing ([`docs/PHASE2D.md`](docs/PHASE2D.md)): **Publish now** renders the menu on the server and serves it at a permanent address (`https://menu.example.com/m/<name>`) whose QR code never changes; every publish is kept as a version the owner can restore.
 
 ```bash
 cp .env.example .env          # fill in PUBLIC_URL and POSTGRES_PASSWORD
@@ -51,13 +51,18 @@ docker compose exec api node dist-server/cli.mjs create-owner you@example.com "Y
 docker compose exec api node dist-server/cli.mjs login-link you@example.com
 ```
 
-If you put your own reverse proxy in front of the API, allow request bodies up to 12 MB on `/api/menus` (e.g. nginx `client_max_body_size 12m;`) — menus can embed images until server uploads land (Phase 2e).
+Put nginx in front: it serves the editor (`dist/`) and passes `/api/` and the published menus (`/m/`) to the server. Menus can embed images until server uploads land (Phase 2e), hence the 12 MB body limit:
+
+```nginx
+location /api/ { proxy_pass http://127.0.0.1:3000; client_max_body_size 12m; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; proxy_set_header X-Forwarded-Proto $scheme; }
+location /m/   { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $remote_addr; }
+```
 
 Sign-in is passwordless: a one-time link (15 minutes) is emailed via any SMTP provider (`SMTP_URL` in `.env`). Team roles: **owner** (manages users), **editor**, **viewer** — invitations come from the owner; there is no public sign-up.
 
 | Command | Purpose |
 |---|---|
-| `npm run server:dev` | API with auto-reload (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`); `npm run dev` proxies `/api` to it |
+| `npm run server:dev` | API with auto-rebuild/restart (needs `DATABASE_URL`, `PUBLIC_URL`, `NODE_ENV=development`, a writable `PUBLISH_DIR`); `npm run dev` proxies `/api` and `/m/` to it |
 | `npm run test:server` | API tests against an in-process Postgres (PGlite) — no Docker needed |
 | `npm run server:build` / `server:start` | Production bundle |
 

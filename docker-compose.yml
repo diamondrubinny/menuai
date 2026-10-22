@@ -4,7 +4,7 @@
 # MenuAI server stack. Usage:
 #   cp .env.example .env   # then fill in the values
 #   docker compose up -d --build
-# nginx on the host proxies /api to 127.0.0.1:3000 and serves dist/ and published menus.
+# nginx on the host serves dist/ and proxies /api/ and /m/ (published menus) to 127.0.0.1:3000.
 services:
   db:
     image: postgres:16-alpine

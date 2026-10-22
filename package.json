@@ -14,8 +14,8 @@
     "check:attribution": "node scripts/check-attribution.mjs",
     "test:watch": "vitest",
     "test:server": "vitest run --config server/vitest.config.ts",
-    "server:dev": "tsx watch server/src/main.ts",
-    "server:build": "esbuild server/src/main.ts server/src/cli.ts --bundle --platform=node --target=node20 --format=esm --external:pg-native --sourcemap --outdir=dist-server --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "server:dev": "node scripts/build-server.mjs --watch",
+    "server:build": "node scripts/build-server.mjs",
     "server:start": "node --enable-source-maps dist-server/main.mjs",
     "test:e2e": "playwright test",
     "audit:deps": "npm audit --omit=dev"
@@ -61,7 +61,6 @@
     "@vitejs/plugin-react": "^6.1.2",
     "esbuild": "^0.28.2",
     "jsdom": "^29.1.1",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
