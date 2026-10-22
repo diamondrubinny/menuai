@@ -88,6 +88,7 @@ describe('publishing', () => {
     expect(csp).toContain("default-src 'none'");
     expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
     expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("img-src 'self' data: https:"); // uploaded images (/media/…) on the same origin
     expect(csp).not.toContain('connect-src'); // falls back to 'none': no calls to the API from a published page
     expect(page.headers['x-frame-options']).toBe('DENY');
     expect(page.body).toContain('<title>לומייר</title>');

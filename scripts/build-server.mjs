@@ -55,7 +55,8 @@ const options = {
   platform: 'node',
   target: 'node20',
   format: 'esm',
-  external: ['pg-native'],
+  // sharp ships native libvips binaries: installed next to the bundle, not bundled (see Dockerfile).
+  external: ['pg-native', 'sharp'],
   sourcemap: true,
   outdir,
   outExtension: { '.js': '.mjs' },

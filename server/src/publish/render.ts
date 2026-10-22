@@ -36,7 +36,7 @@ export function readFontBase64(file: FontFile): Promise<string> {
 
 /** Renders a validated menu into the same self-contained HTML file the editor exports. */
 export function renderPublishedMenu(menu: Menu): Promise<string> {
-  return exportMenuHtml(menu, { embedFonts: true, loadFont: readFontBase64 });
+  return exportMenuHtml(menu, { embedFonts: true, loadFont: readFontBase64, media: 'link' });
 }
 
 let cspPromise: Promise<string> | undefined;
@@ -50,7 +50,7 @@ export function publishedMenuCsp(): Promise<string> {
   cspPromise ??= sha256Base64(runtimeScript()).then((hash) =>
     [
       "default-src 'none'",
-      'img-src data: https:',
+      "img-src 'self' data: https:",
       "style-src 'unsafe-inline'",
       'font-src data:',
       `script-src 'sha256-${hash}'`,

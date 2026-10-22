@@ -10,6 +10,10 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run server:build
+# sharp (image re-encoding) ships native libvips binaries, so it is installed next to the bundle
+# instead of being bundled: only sharp, at the exact version locked in package-lock.json.
+RUN mkdir /deps && cd /deps && echo '{"private":true}' > package.json \
+ && npm install --omit=dev --no-audit --no-fund --no-package-lock "sharp@$(node -p "require('/app/node_modules/sharp/package.json').version")"
 
 # The server is bundled into one file with all its dependencies: no node_modules,
 # no npm, no editor packages in the runtime image (smaller and less to attack).
@@ -17,6 +21,7 @@ FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/dist-server ./dist-server
+COPY --from=build /deps/node_modules ./node_modules
 # Writable data lives in volumes, never inside the image.
 RUN mkdir -p /var/lib/menuai/published /var/lib/menuai/uploads && chown -R node:node /var/lib/menuai
 USER node

@@ -17,6 +17,9 @@ import { userRoutes } from './users/routes';
 import { menuRoutes } from './menus/routes';
 import { publishRoutes, sendMenuNotFound } from './publish/routes';
 import { createFileStore, type PublishStore } from './publish/store';
+import { uploadRoutes, collectOrphanUploads } from './uploads/routes';
+import { createMediaStore, type MediaStore } from './uploads/store';
+import { clamdScanner, unscanned, type Scanner } from './uploads/clamd';
 
 export interface AppDeps {
   config: Config;
@@ -26,6 +29,10 @@ export interface AppDeps {
   logStream?: Writable;
   /** Published menu files (default: PUBLISH_DIR on disk). */
   publishStore?: PublishStore;
+  /** Uploaded images (default: UPLOAD_DIR on disk). */
+  mediaStore?: MediaStore;
+  /** Virus scanner for uploads (default: clamd at CLAMAV_URL; null disables uploads). */
+  scanner?: Scanner | null;
 }
 
 declare module 'fastify' {
@@ -110,6 +117,29 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const store = deps.publishStore ?? createFileStore(config.PUBLISH_DIR);
   await app.register(menuRoutes, { store });
   await app.register(publishRoutes, { store });
+
+  const media = deps.mediaStore ?? createMediaStore(config.UPLOAD_DIR);
+  const scanner =
+    deps.scanner !== undefined ? deps.scanner
+    : config.CLAMAV_URL ? clamdScanner(config.CLAMAV_URL)
+    : config.UPLOADS_ALLOW_UNSCANNED ? unscanned
+    : null;
+  if (!scanner) app.log.warn('CLAMAV_URL is not set: image uploads are disabled (every upload must be virus scanned).');
+  await app.register(uploadRoutes, { media, scanner });
+
+  // Daily cleanup of images no menu uses any more.
+  if (config.NODE_ENV !== 'test') {
+    const sweep = () =>
+      collectOrphanUploads(deps.db, media)
+        .then((n) => n && app.log.info({ removed: n }, 'orphan uploads removed'))
+        .catch((err: unknown) => app.log.error({ err }, 'orphan upload cleanup failed'));
+    let timer: ReturnType<typeof setInterval> | undefined;
+    app.addHook('onReady', async () => {
+      timer = setInterval(sweep, 24 * 60 * 60 * 1000);
+      timer.unref();
+    });
+    app.addHook('onClose', async () => clearInterval(timer));
+  }
 
   app.get('/api/health', async (_req, reply) => {
     try {

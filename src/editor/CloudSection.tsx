@@ -4,7 +4,8 @@
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 import { useEffect, useId, useState } from 'react';
-import { cloud, useCloud } from '../store/cloudStore';
+import { cloud, embeddedImageCount, moveImagesToServer, useCloud } from '../store/cloudStore';
+import { useMenuStore } from '../store/menuStore';
 import { useFeedback } from '../store/feedbackStore';
 import { useT, type UiKey } from '../i18n/ui';
 import type { CloudMenuSummary, PublishResult, SyncStatus } from '../cloud/sync';
@@ -154,6 +155,7 @@ export function CloudSection() {
             <>
               <p className="hint">{t('cloudLinked', { slug: link.slug })}</p>
               <PublishControls />
+              {canWrite && <MoveImages />}
               {status === 'readonly' && <p className="hint">{t('cloudReadonlyHint')}</p>}
               <div className="button-row">
                 {canWrite && (
@@ -366,5 +368,32 @@ function PublishControls() {
         </details>
       )}
     </section>
+  );
+}
+
+/** Offers to move images embedded in the menu (data URLs) to the server, where they are scanned and optimized. */
+function MoveImages() {
+  const { t } = useT();
+  const notify = useFeedback((s) => s.notify);
+  // Re-evaluated on every menu change; cheap (a walk over the image references).
+  const count = useMenuStore(() => embeddedImageCount());
+  const [busy, setBusy] = useState(false);
+  if (count === 0) return null;
+
+  const move = async () => {
+    setBusy(true);
+    const { moved, failed } = await moveImagesToServer();
+    setBusy(false);
+    if (moved) notify(t('cloudMovedImages', { moved }), 'success');
+    if (failed) notify(t('cloudMoveImagesFailed', { failed }), 'error');
+  };
+
+  return (
+    <div className="cloud-move-images">
+      <p className="hint">{t('cloudMoveImagesHint')}</p>
+      <button type="button" className="btn btn-block" disabled={busy} aria-busy={busy} onClick={() => void move()}>
+        {busy ? t('cloudMovingImages') : t('cloudMoveImages', { count })}
+      </button>
+    </div>
   );
 }

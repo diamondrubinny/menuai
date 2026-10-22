@@ -104,4 +104,13 @@ CREATE TABLE audit_log (
 CREATE INDEX audit_log_at ON audit_log (at DESC);
 `,
   },
+  {
+    id: '0002_upload_details',
+    sql: `
+ALTER TABLE uploads ADD COLUMN width integer CHECK (width > 0);
+ALTER TABLE uploads ADD COLUMN height integer CHECK (height > 0);
+ALTER TABLE uploads ADD COLUMN scan_result text CHECK (length(scan_result) <= 200);
+CREATE INDEX uploads_status_created ON uploads (status, created_at);
+`,
+  },
 ];

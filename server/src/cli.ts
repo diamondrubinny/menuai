@@ -6,6 +6,7 @@
 // Administrative commands, run on the server itself (direct database access, no HTTP):
 //   node dist-server/cli.mjs create-owner <email> [name]   create the first owner and print a sign-in link
 //   node dist-server/cli.mjs login-link <email>            print a one-time sign-in link for an existing user
+//   node dist-server/cli.mjs gc-uploads                    delete uploaded images no menu uses any more (also runs daily)
 // In Docker: docker compose exec api node dist-server/cli.mjs create-owner you@example.com
 import { z } from 'zod';
 import { loadConfig } from './config';
@@ -16,12 +17,18 @@ import {
   audit, findActiveUserByEmail, INVITE_LINK_MINUTES, issueLoginToken, LOGIN_LINK_MINUTES, loginLink, normalizeEmail,
 } from './auth/service';
 import { CREDIT_LINE } from '../../src/core/brand';
+import { collectOrphanUploads } from './uploads/gc';
+import { createMediaStore } from './uploads/store';
 
-export async function runCli(args: string[], db: SqlClient, publicUrl: string): Promise<{ code: number; out: string }> {
+export async function runCli(args: string[], db: SqlClient, publicUrl: string, uploadDir?: string): Promise<{ code: number; out: string }> {
   const [command, rawEmail, ...nameParts] = args;
+  if (command === 'gc-uploads' && uploadDir) {
+    const removed = await collectOrphanUploads(db, createMediaStore(uploadDir));
+    return { code: 0, out: `Removed ${removed} unused image(s).` };
+  }
   const email = z.string().trim().pipe(z.email().max(254)).safeParse(rawEmail ?? '');
   if ((command !== 'create-owner' && command !== 'login-link') || !email.success) {
-    return { code: 2, out: 'Usage:\n  create-owner <email> [name]\n  login-link <email>' };
+    return { code: 2, out: 'Usage:\n  create-owner <email> [name]\n  login-link <email>\n  gc-uploads' };
   }
 
   if (command === 'create-owner') {
@@ -51,7 +58,7 @@ if (process.argv[1] && /cli\.(m?js|ts)$/.test(process.argv[1])) {
     const db = createPgClient(config.DATABASE_URL);
     try {
       await migrate(db);
-      const { code, out } = await runCli(process.argv.slice(2), db, config.PUBLIC_URL);
+      const { code, out } = await runCli(process.argv.slice(2), db, config.PUBLIC_URL, config.UPLOAD_DIR);
       (code === 0 ? console.log : console.error)(`${out}\n\n${CREDIT_LINE}`);
       process.exitCode = code;
     } finally {

@@ -56,7 +56,8 @@ test('exported HTML is self-contained, switches languages and passes axe', async
   const file = await (await download).path();
   const html = await readFile(file, 'utf8');
   // No external resource is ever loaded (fonts, images, scripts and styles are all inline)…
-  expect(html).not.toMatch(/(src|href)="https?:\/\/[^"]*"(?![^<]*<\/a>)|url\(\s*['"]?https?:|<link\b|@import/i);
+  // (the only <link> is an empty inline icon, which stops browsers from requesting /favicon.ico)
+  expect(html.replace('<link rel="icon" href="data:,">', '')).not.toMatch(/(src|href)="https?:\/\/[^"]*"(?![^<]*<\/a>)|url\(\s*['"]?https?:|<link\b|@import/i);
   // …and the only external address at all is the project credit link.
   const external = new Set(html.match(/https?:\/\/[^\s"'<>)]+/g)?.filter((u) => !u.startsWith('http://www.w3.org')));
   expect([...external]).toEqual(['https://github.com/diamondrubinny/menuai']);

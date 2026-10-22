@@ -47,14 +47,15 @@ jobs:
           CI: 'true'
 
   docker:
-    # Builds the production image and boots the full compose stack (Postgres + API).
+    # Builds the production image and boots the full compose stack (Postgres + ClamAV + API).
     runs-on: ubuntu-latest
     env:
       POSTGRES_PASSWORD: ci-only-password
       PUBLIC_URL: https://menu.example.com
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose up -d --build --wait --wait-timeout 180
+      # ClamAV downloads its signature database on first start, which takes a few minutes.
+      - run: docker compose up -d --build --wait --wait-timeout 600
       - name: Health check through the published localhost port
         run: |
           curl -fsS http://127.0.0.1:3000/api/health | grep -q '"status":"ok"'
@@ -62,7 +63,22 @@ jobs:
       - name: Runtime image is minimal and non-root
         run: |
           test "$(docker compose exec -T api id -u)" != "0"
-          docker compose exec -T api sh -c 'test ! -d /app/node_modules'
+          # Only sharp (native) sits next to the bundle; everything else is bundled.
+          docker compose exec -T api sh -c 'test -d /app/node_modules/sharp && test ! -d /app/node_modules/fastify'
+      - name: Image upload end to end (real ClamAV scan + sharp on Alpine)
+        run: |
+          set -euo pipefail
+          ORIGIN=https://menu.example.com
+          TOKEN=$(docker compose exec -T api node dist-server/cli.mjs create-owner ci@example.com CI | grep -o 'token=[A-Za-z0-9_-]*' | cut -d= -f2)
+          SESSION=$(curl -fsS -D - -o /dev/null -H "Origin: $ORIGIN" -H 'content-type: application/json' \
+            -d "{\"token\":\"$TOKEN\"}" http://127.0.0.1:3000/api/auth/verify | grep -io 'menuai_session=[^;]*')
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d > dot.png
+          RES=$(curl -fsS -H "Origin: $ORIGIN" -H "Cookie: $SESSION" -H 'content-type: image/png' --data-binary @dot.png http://127.0.0.1:3000/api/uploads)
+          echo "$RES"
+          URL=$(echo "$RES" | grep -o '/media/[0-9a-f-]*\.webp')
+          curl -fsS -o /dev/null -w '%{content_type}' "http://127.0.0.1:3000$URL" | grep -q image/webp
+          # A renamed non-image is refused before it is even scanned.
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -H "Origin: $ORIGIN" -H "Cookie: $SESSION" -H 'content-type: image/png' --data-binary '<svg/>' http://127.0.0.1:3000/api/uploads)" = 415
       - if: failure()
         run: docker compose logs --no-color
       - if: always()

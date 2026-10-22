@@ -14,6 +14,7 @@ import { migrate } from '../src/db/migrate';
 import type { SqlClient } from '../src/db/sql';
 import type { Mail, Mailer } from '../src/mail/mailer';
 import type { PublishStore } from '../src/publish/store';
+import type { Scanner } from '../src/uploads/clamd';
 
 export function testConfig(overrides: Record<string, string> = {}): Config {
   return loadConfig({
@@ -23,6 +24,7 @@ export function testConfig(overrides: Record<string, string> = {}): Config {
     LOG_LEVEL: 'silent',
     // Each test app publishes into its own throwaway directory.
     PUBLISH_DIR: mkdtempSync(path.join(tmpdir(), 'menuai-pub-')),
+    UPLOAD_DIR: mkdtempSync(path.join(tmpdir(), 'menuai-up-')),
     ...overrides,
   });
 }
@@ -41,7 +43,7 @@ export function captureMailer(configured = true): Mailer & { sent: Mail[] } {
 
 export const ORIGIN = 'http://localhost:5173';
 
-export async function testApp(opts: { config?: Record<string, string>; db?: SqlClient; logs?: string[]; mailer?: Mailer; publishStore?: PublishStore } = {}) {
+export async function testApp(opts: { config?: Record<string, string>; db?: SqlClient; logs?: string[]; mailer?: Mailer; publishStore?: PublishStore; scanner?: Scanner | null } = {}) {
   const db = opts.db ?? (await testDb());
   const config = testConfig(opts.config);
   const logs = opts.logs;
@@ -50,6 +52,7 @@ export async function testApp(opts: { config?: Record<string, string>; db?: SqlC
     db,
     mailer: opts.mailer ?? captureMailer(),
     publishStore: opts.publishStore,
+    scanner: opts.scanner,
     logStream: logs ? new Writable({ write(chunk, _enc, cb) { logs.push(String(chunk)); cb(); } }) : undefined,
   });
   return { app, db, config, mailer: opts.mailer };
