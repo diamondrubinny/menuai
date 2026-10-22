@@ -86,6 +86,10 @@ function SectionEditor({ section, index, total, locale, fallbackLocale }: {
           onChange={(description) => updateSection(section.id, (s) => ({ ...s, description }), `s.${section.id}.desc.${locale}`)}
         />
         <Toggle label={t('hidden')} checked={section.hidden} onChange={(hidden) => updateSection(section.id, (s) => ({ ...s, hidden }))} />
+        <ImageField
+          label={t('sectionImage')} value={section.image} locale={locale} fallbackLocale={fallbackLocale}
+          onChange={(image) => updateSection(section.id, (s) => ({ ...s, image }))}
+        />
 
         <ul className="items-editor">
           {section.items.map((item, i) => (

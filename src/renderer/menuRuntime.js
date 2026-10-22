@@ -132,8 +132,23 @@ export function initMenuRuntime(container, options) {
     }
   }
 
+  var spotFrame = 0;
+  function moveSpotlight(event) {
+    var root = event.target instanceof Element ? event.target.closest('[data-ma-root].fx-spotlight') : null;
+    if (!root || motionReduced(root)) return;
+    if (spotFrame) cancelAnimationFrame(spotFrame);
+    spotFrame = requestAnimationFrame(function () {
+      var r = root.getBoundingClientRect();
+      // Divide by the visual scale so it also works inside the scaled device preview.
+      var scale = r.width / (root.offsetWidth || r.width);
+      root.style.setProperty('--ma-sx', ((event.clientX - r.left) / scale).toFixed(0) + 'px');
+      root.style.setProperty('--ma-sy', ((event.clientY - r.top) / scale).toFixed(0) + 'px');
+    });
+  }
+
   function onPointerMove(event) {
     if (!finePointer) return;
+    moveSpotlight(event);
     var el = event.target instanceof Element ? event.target.closest('.fx-tilt .ma-item-inner') : null;
     if (!el) return;
     var root = el.closest('[data-ma-root]');
@@ -198,6 +213,7 @@ export function initMenuRuntime(container, options) {
       if (revealObserver) revealObserver.disconnect();
       if (navObserver) navObserver.disconnect();
       if (tiltFrame) cancelAnimationFrame(tiltFrame);
+      if (spotFrame) cancelAnimationFrame(spotFrame);
     },
   };
 }

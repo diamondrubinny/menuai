@@ -23,7 +23,14 @@ export interface MenuRendererProps {
   hidden?: boolean;
 }
 
-const MOTION_EFFECTS = ['reveal', 'glow', 'aurora', 'tilt', 'shimmer', 'parallax'] as const;
+const MOTION_EFFECTS = ['reveal', 'glow', 'aurora', 'tilt', 'shimmer', 'parallax', 'spotlight', 'bokeh', 'gradientBorder', 'kenBurns'] as const;
+
+/** Deterministic layout for the bokeh lights (no randomness: stable SSR/export output). */
+const BOKEH = [
+  { x: 8, y: 6, s: 140, d: 0 }, { x: 78, y: 12, s: 220, d: -4 }, { x: 40, y: 28, s: 90, d: -9 },
+  { x: 88, y: 41, s: 160, d: -2 }, { x: 14, y: 52, s: 200, d: -12 }, { x: 60, y: 63, s: 120, d: -6 },
+  { x: 30, y: 78, s: 170, d: -15 }, { x: 82, y: 88, s: 110, d: -8 },
+];
 
 function listFormat(locale: string, values: string[]): string {
   try {
@@ -55,6 +62,7 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
     '--ma-scale': String(menu.design.scale),
   } as CSSProperties;
 
+  const heroStyle = menu.hero ? design.heroStyle : 'classic';
   const fxClasses = (Object.keys(effects) as (keyof typeof effects)[]).filter((k) => effects[k]).map((k) => `fx-${k}`);
   const className = [
     'ma-menu',
@@ -63,6 +71,7 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
     `ma-surface-${theme.surface}`,
     `ma-tex-${theme.texture}`,
     `ma-density-${menu.design.density}`,
+    `ma-hero-${heroStyle}`,
     theme.headingCase === 'uppercase' ? 'ma-case-upper' : '',
     menu.design.stickyNav ? 'ma-sticky-nav' : '',
     ...fxClasses,
@@ -166,6 +175,18 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
       hidden={hidden}
     >
       {effects.aurora && <div className="ma-aurora" aria-hidden="true"><span /><span /><span /></div>}
+      {design.pattern !== 'none' && <div className={`ma-pattern ma-pattern-${design.pattern}`} aria-hidden="true" />}
+      {effects.bokeh && (
+        <div className="ma-bokeh" aria-hidden="true">
+          {BOKEH.map((b, i) => (
+            <span
+              key={i}
+              style={{ insetInlineStart: `${b.x}%`, top: `${b.y}%`, width: b.s, height: b.s, animationDelay: `${b.d}s` }}
+            />
+          ))}
+        </div>
+      )}
+      {effects.spotlight && <div className="ma-spotlight" aria-hidden="true" />}
       {effects.grain && <div className="ma-grain" aria-hidden="true" />}
 
       <header className="ma-header">
@@ -236,14 +257,32 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
         ) : (
           sections.map((s) => {
             const desc = tx(s.description);
+            const banner = Boolean(s.image && menu.design.showImages);
+            const head = (
+              <header className="ma-section-head">
+                <h2 className="ma-section-title" id={`${sectionId(s)}-h`} tabIndex={-1}>
+                  <span>{tx(s.title)}</span>
+                </h2>
+                {desc && <p className="ma-section-desc">{desc}</p>}
+              </header>
+            );
             return (
-              <section key={s.id} className="ma-section" id={sectionId(s)} aria-labelledby={`${sectionId(s)}-h`}>
-                <header className="ma-section-head">
-                  <h2 className="ma-section-title" id={`${sectionId(s)}-h`} tabIndex={-1}>
-                    <span>{tx(s.title)}</span>
-                  </h2>
-                  {desc && <p className="ma-section-desc">{desc}</p>}
-                </header>
+              <section
+                key={s.id}
+                className={`ma-section${banner ? ' ma-has-banner' : ''}`}
+                id={sectionId(s)}
+                aria-labelledby={`${sectionId(s)}-h`}
+              >
+                {banner && s.image ? (
+                  <div className="ma-section-cover">
+                    <figure className="ma-section-banner">
+                      <img src={s.image.src} alt={t(s.image.alt, locale, fb)} loading="lazy" decoding="async" />
+                    </figure>
+                    {head}
+                  </div>
+                ) : (
+                  head
+                )}
                 <ul className="ma-items">{s.items.map(renderItem)}</ul>
               </section>
             );

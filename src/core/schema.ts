@@ -74,6 +74,7 @@ export const sectionSchema = z.object({
   title: localizedSchema.default({}),
   description: localizedSchema.default({}),
   items: z.array(itemSchema).max(LIMITS.itemsPerSection).default([]),
+  image: imageRefSchema.optional(),
   hidden: z.boolean().default(false),
 });
 export type Section = z.infer<typeof sectionSchema>;
@@ -81,6 +82,7 @@ export type Section = z.infer<typeof sectionSchema>;
 export const THEME_IDS = [
   'noir-gold', 'ivory-bistro', 'chalkboard', 'neon-night', 'aurora-glass', 'nordic-minimal',
   'terracotta', 'matcha-zen', 'ocean-breeze', 'desert-souk', 'retro-diner', 'garden-brunch',
+  'emerald-deco', 'botanical', 'brutalist', 'sunset',
 ] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
@@ -95,8 +97,15 @@ export type FontId = (typeof FONT_IDS)[number];
 
 export const EFFECTS = [
   'reveal', 'glass', 'glow', 'aurora', 'grain', 'tilt', 'shimmer', 'parallax', 'leaders', 'ornaments',
+  'spotlight', 'bokeh', 'gradientBorder', 'kenBurns',
 ] as const;
 export type Effect = (typeof EFFECTS)[number];
+
+export const HERO_STYLES = ['classic', 'overlay', 'split'] as const;
+export type HeroStyle = (typeof HERO_STYLES)[number];
+
+export const PATTERNS = ['none', 'dots', 'grid', 'waves', 'terrazzo', 'arabesque', 'stripes'] as const;
+export type Pattern = (typeof PATTERNS)[number];
 
 export const PALETTE_KEYS = ['bg', 'surface', 'text', 'muted', 'accent', 'accent2'] as const;
 export type PaletteKey = (typeof PALETTE_KEYS)[number];
@@ -104,6 +113,8 @@ export type PaletteKey = (typeof PALETTE_KEYS)[number];
 export const designSchema = z.object({
   theme: z.enum(THEME_IDS).default('noir-gold'),
   layout: z.enum(LAYOUTS).default('list'),
+  heroStyle: z.enum(HERO_STYLES).optional(),
+  pattern: z.enum(PATTERNS).optional(),
   palette: z.partialRecord(z.enum(PALETTE_KEYS), hexColor).default({}),
   fontDisplay: z.enum(FONT_IDS).optional(),
   fontBody: z.enum(FONT_IDS).optional(),
