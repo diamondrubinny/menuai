@@ -1,6 +1,6 @@
 /*! @license
  * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
- * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 import { create } from 'zustand';
@@ -210,7 +210,7 @@ const en = {
   saveUnavailable: 'This browser blocks local storage — changes will be lost when you close the page. Export a backup.',
   accessibility: 'Accessibility statement',
   privacy: 'Privacy',
-  sourceCode: 'Open source (MIT)',
+  sourceCode: 'Source code (AGPL-3.0)',
   backToEditor: 'Back to editor',
   notFound: 'Page not found',
   notFoundText: 'The page you were looking for does not exist.',
@@ -436,7 +436,7 @@ const he: Dict = {
   saveUnavailable: 'הדפדפן חוסם שמירה מקומית, והשינויים יאבדו כשתסגרו את הדף. ייצאו גיבוי.',
   accessibility: 'הצהרת נגישות',
   privacy: 'פרטיות',
-  sourceCode: 'קוד פתוח (MIT)',
+  sourceCode: 'קוד המקור (AGPL-3.0)',
   backToEditor: 'חזרה לעורך',
   notFound: 'הדף לא נמצא',
   notFoundText: 'הדף שחיפשתם אינו קיים.',
@@ -659,7 +659,7 @@ const ar: Dict = {
   saveUnavailable: 'هذا المتصفح يمنع التخزين المحلي — ستضيع التغييرات عند إغلاق الصفحة. صدّر نسخة احتياطية.',
   accessibility: 'بيان إمكانية الوصول',
   privacy: 'الخصوصية',
-  sourceCode: 'مفتوح المصدر (MIT)',
+  sourceCode: 'الشيفرة المصدرية (AGPL-3.0)',
   backToEditor: 'العودة إلى المحرر',
   notFound: 'الصفحة غير موجودة',
   notFoundText: 'الصفحة التي تبحث عنها غير موجودة.',

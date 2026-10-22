@@ -110,8 +110,8 @@ Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/
 
 ## Attribution
 
-MenuAI shows a **"Powered by MenuAI · Open source"** credit on every menu (preview, full-screen view, exported file, print), in the editor footer, in emails, server logs and CLI output, and every source file starts with the MenuAI license notice (preserved in built bundles as a `/*! @license */` comment). There is no setting that hides it. `npm run check:attribution` (also part of `npm test` and CI) fails if any of it is removed. Please keep it in forks and copies — see [`NOTICE`](NOTICE).
+MenuAI shows a **"Powered by MenuAI · Open source"** credit on every menu (preview, full-screen view, exported file, print), in the editor footer, in emails, server logs and CLI output, and every source file starts with the MenuAI license notice (preserved in built bundles as a `/*! @license */` comment). There is no setting that hides it. `npm run check:attribution` (also part of `npm test` and CI) fails if any of it is removed. Keeping it is a license requirement (AGPL-3.0 Section 7(b) terms in [`NOTICE`](NOTICE)).
 
 ## Licenses
 
-Code: [MIT](LICENSE), © 2026 Diamond Rubinny and MenuAI contributors — keep the notices in [`NOTICE`](NOTICE). Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.
+Code: [GNU AGPL-3.0-only](LICENSE) with **additional attribution terms** (Section 7) in [`NOTICE`](NOTICE), © 2026 Diamond Rubinny and MenuAI contributors. You may use, modify and redistribute MenuAI freely; if you run a modified version as a network service, you must offer its source to its users; and the "Powered by MenuAI · Open source" credit and the license notices must be kept. Versions published before this change remain available under MIT. Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.

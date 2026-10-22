@@ -1,6 +1,6 @@
 /*! @license
  * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
- * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 import { describe, expect, it } from 'vitest';
@@ -67,13 +67,13 @@ describe('attribution', () => {
   it('exported files carry the visible credit, a header comment, generator meta and the CSS notice', async () => {
     const html = await exportMenuHtml(createSampleMenu(), { embedFonts: false });
     expect(html.indexOf('Made with MenuAI')).toBeLessThan(html.indexOf('<html'));
-    expect(html).toContain(`<meta name="generator" content="MenuAI (open source, MIT) ${BRAND.repo}">`);
+    expect(html).toContain(`<meta name="generator" content="MenuAI (open source, AGPL-3.0) ${BRAND.repo}">`);
     expect(html.match(/data-ma-credit/g)).toHaveLength(3); // one per language block
     expect(html).toMatch(/\/\*! @license[\s\S]*Powered by MenuAI/);
   });
 
   it('emails and server output carry the credit line', () => {
     expect(loginMail('a@example.com', 'https://x/#/login?token=t', 'login', 15).text).toContain(CREDIT_LINE);
-    expect(CREDIT_LINE).toBe(`Powered by MenuAI · Open source (MIT) · ${BRAND.repo}`);
+    expect(CREDIT_LINE).toBe(`Powered by MenuAI · Open source (AGPL-3.0) · ${BRAND.repo}`);
   });
 });

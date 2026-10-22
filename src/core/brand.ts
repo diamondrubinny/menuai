@@ -1,6 +1,6 @@
 /*! @license
  * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
- * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 /**
@@ -15,7 +15,7 @@ export const BRAND = {
   name: 'MenuAI',
   author: 'Diamond Rubinny',
   repo: 'https://github.com/diamondrubinny/menuai',
-  license: 'MIT',
+  license: 'AGPL-3.0',
 } as const;
 
 interface CreditText {

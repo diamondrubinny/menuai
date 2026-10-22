@@ -2,20 +2,60 @@ MenuAI — open-source menu builder
 https://github.com/diamondrubinny/menuai
 
 Copyright (c) 2026 Diamond Rubinny and MenuAI contributors
-Licensed under the MIT License (see LICENSE).
 
-Attribution
------------
-MenuAI shows a "Powered by MenuAI · Open source" credit on every menu it renders
-(editor preview, full-screen view, exported files, print), in the editor footer,
-in server logs and in CLI output. Every source file carries the MenuAI license
-notice. These credits are part of the project:
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License, version 3 only
+(SPDX: AGPL-3.0-only), as published by the Free Software Foundation, together
+with the additional terms below. See LICENSE for the full license text.
 
-  * The copyright and license notices (LICENSE, this NOTICE, and the header at the
-    top of each source file) must be kept in all copies, forks and substantial
-    portions of the software, as required by the MIT License.
-  * We ask that the visible "Powered by MenuAI" credit be kept as well. The test
-    suite and CI (`npm run check:attribution`) fail if it is removed.
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
-Third-party components keep their own licenses (fonts: SIL Open Font License 1.1,
-via Fontsource; npm dependencies: see package-lock.json).
+Note: versions of MenuAI published before this notice was introduced were
+released under the MIT License; those copies remain available under MIT.
+
+
+ADDITIONAL TERMS UNDER SECTION 7 OF THE GNU AGPL v3
+---------------------------------------------------
+
+As permitted by Section 7 of the GNU Affero General Public License version 3,
+the following additional terms apply to MenuAI and to every covered work based
+on it:
+
+(b) Attribution. You must preserve, in every copy and every modified version:
+
+    1. The attribution notice "Powered by MenuAI · Open source", in the
+       language of the menu or interface, with a working link to
+       https://github.com/diamondrubinny/menuai, displayed in a reasonably
+       visible way:
+         - on every menu the software renders, displays, prints or exports
+           (including exported HTML files), and
+         - in the user interface of the menu editor.
+    2. The copyright and license notice at the top of each source file, and
+       this NOTICE file.
+
+(c) Origin. Modified versions must be marked as changed from the original
+    MenuAI, and must not be represented as the original MenuAI.
+
+These terms are part of the license, not a "further restriction" in the sense
+of Section 7, and may not be removed from covered works.
+
+
+HOW THE ATTRIBUTION IS IMPLEMENTED
+----------------------------------
+
+Single source: src/core/brand.ts. It is rendered on every menu (preview,
+full-screen view, exported files, print), in the editor footer, in server logs,
+CLI output and emails. `npm run check:attribution` (run by `npm test` and CI)
+fails if any of it is removed.
+
+
+THIRD-PARTY COMPONENTS
+----------------------
+
+Third-party components keep their own licenses (fonts: SIL Open Font License
+1.1, via Fontsource; npm dependencies: see package-lock.json).
+
+
+*** DRAFT — these terms must be reviewed by a lawyer before relying on them. ***

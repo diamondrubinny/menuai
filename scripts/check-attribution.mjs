@@ -1,6 +1,6 @@
 /*! @license
  * MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
- * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · MIT License
+ * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 // Verifies that MenuAI's attribution is intact. Run by `npm test` and CI.
@@ -32,14 +32,14 @@ export function checkAttribution(root = '.') {
   files.push(join(root, 'vite.config.ts'), join(root, 'playwright.config.ts'));
   for (const file of files) {
     const head = readFileSync(file, 'utf8').split('\n').slice(0, 8).join('\n');
-    if (!head.includes('@license') || !head.includes(REPO) || !head.includes('MIT License') || !head.includes('Powered by MenuAI')) {
+    if (!head.includes('@license') || !head.includes(REPO) || !head.includes('AGPL-3.0') || !head.includes('Powered by MenuAI')) {
       problems.push(`missing MenuAI license header: ${file.slice(root.length).replace(/^\//, '') || file}`);
     }
   }
 
   const required = [
-    ['LICENSE', ['MIT License', 'Diamond Rubinny']],
-    ['NOTICE', ['MenuAI', REPO, 'Powered by MenuAI']],
+    ['LICENSE', ['GNU AFFERO GENERAL PUBLIC LICENSE', 'Version 3']],
+    ['NOTICE', ['MenuAI', REPO, 'Powered by MenuAI', 'Section 7', 'Diamond Rubinny']],
     ['src/core/brand.ts', [REPO, "name: 'MenuAI'", 'CREDIT_LINE', 'CREDIT_COMMENT']],
     ['src/renderer/MenuRenderer.tsx', ['data-ma-credit', 'BRAND.repo', 'creditText(locale)']],
     ['src/pages/SiteFooter.tsx', ['data-ma-credit', 'BRAND.name']],
@@ -64,7 +64,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const problems = checkAttribution();
   if (problems.length) {
     console.error('MenuAI attribution check failed:\n' + problems.map((p) => `  - ${p}`).join('\n'));
-    console.error('\nMenuAI is open source (MIT). Please keep its notices and "Powered by MenuAI" credit. See NOTICE.');
+    console.error('\nMenuAI is open source (AGPL-3.0 with attribution terms). Its notices and the "Powered by MenuAI" credit must be kept. See NOTICE.');
     process.exit(1);
   }
   console.log('MenuAI attribution: OK');
