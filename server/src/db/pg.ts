@@ -10,9 +10,25 @@ function wrap(run: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>)
   };
 }
 
+export interface PgOptions {
+  /** Called when an idle pooled connection fails (e.g. the database restarted). */
+  onError?: (err: Error) => void;
+}
+
 /** Production client backed by a node-postgres pool. */
-export function createPgClient(connectionString: string): SqlClient {
-  const pool = new pg.Pool({ connectionString, max: 10, idleTimeoutMillis: 30_000 });
+export function createPgClient(connectionString: string, options: PgOptions = {}): SqlClient {
+  const pool = new pg.Pool({
+    connectionString,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    // A runaway query must not hold a connection forever.
+    statement_timeout: 15_000,
+    idle_in_transaction_session_timeout: 30_000,
+  });
+  // Without this listener, an error on an idle client (DB restart, network blip) crashes the process.
+  // The pool discards the broken client and opens a new one on the next query.
+  pool.on('error', (err) => options.onError?.(err));
   return {
     ...wrap((sql, params) => pool.query(sql, params)),
     async transaction(fn) {

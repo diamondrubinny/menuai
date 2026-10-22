@@ -35,7 +35,10 @@ export type Config = z.infer<typeof configSchema> & { SECURE_COOKIES: boolean };
 
 /** Validates environment variables. Throws a readable error that never echoes secret values. */
 export function loadConfig(env: Record<string, string | undefined>): Config {
-  const result = configSchema.safeParse(env);
+  // `KEY=` in .env / compose arrives as an empty string: treat it as "not set" so optional
+  // settings (like SMTP before a provider is chosen) can be left blank as documented.
+  const cleaned = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v.trim() !== ''));
+  const result = configSchema.safeParse(cleaned);
   if (!result.success) {
     const problems = result.error.issues.map((i) => `  - ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid configuration:\n${problems}`);

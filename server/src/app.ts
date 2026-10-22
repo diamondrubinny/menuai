@@ -32,6 +32,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     // Trust exactly N proxy hops (nginx on the same host = 1) so client IPs can't be spoofed via X-Forwarded-For.
     trustProxy: (_address: string, hop: number) => hop < config.TRUST_PROXY_HOPS,
     bodyLimit: 1024 * 1024,
+    // Slow or stalled clients are cut off instead of holding sockets open (slowloris).
+    requestTimeout: 30_000,
+    connectionTimeout: 60_000,
     genReqId: () => crypto.randomUUID(),
     logger: {
       level: config.LOG_LEVEL,
@@ -73,7 +76,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // Unknown routes are rate-limited too, so scanners probing random paths get throttled.
   app.setNotFoundHandler({ preHandler: app.rateLimit() }, (_req, reply) => reply.status(404).send({ error: 'not_found' }));
 
-  app.get('/api/health', { config: { rateLimit: false } }, async (_req, reply) => {
+  // Rate-limited like every route: it touches the database, so it must not be a free amplifier.
+  app.get('/api/health', async (_req, reply) => {
     try {
       await deps.db.query('SELECT 1');
       return { status: 'ok' };

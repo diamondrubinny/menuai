@@ -135,6 +135,13 @@ describe('config', () => {
     expect(c.SECURE_COOKIES).toBe(true);
   });
 
+  it('treats blank variables as unset (SMTP_URL= in .env, as docker compose passes it)', () => {
+    const c = loadConfig({ ...base, SMTP_URL: '', MAIL_FROM: '', LOG_LEVEL: '', SECURE_COOKIES: ' ' });
+    expect(c.SMTP_URL).toBeUndefined();
+    expect(c.LOG_LEVEL).toBe('info');
+    expect(c.SECURE_COOKIES).toBe(true);
+  });
+
   it('requires https in production and MAIL_FROM with SMTP', () => {
     expect(() => loadConfig({ ...base, PUBLIC_URL: 'http://menu.example.com' })).toThrow(/PUBLIC_URL/);
     expect(() => loadConfig({ ...base, SMTP_URL: 'smtp://mail:25' })).toThrow(/MAIL_FROM/);

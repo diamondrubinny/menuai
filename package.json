@@ -14,7 +14,7 @@
     "test:watch": "vitest",
     "test:server": "vitest run --config server/vitest.config.ts",
     "server:dev": "tsx watch server/src/main.ts",
-    "server:build": "esbuild server/src/main.ts --bundle --platform=node --target=node20 --format=esm --packages=external --sourcemap --outfile=dist-server/main.mjs",
+    "server:build": "esbuild server/src/main.ts --bundle --platform=node --target=node20 --format=esm --external:pg-native --sourcemap --outfile=dist-server/main.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "server:start": "node --enable-source-maps dist-server/main.mjs",
     "test:e2e": "playwright test",
     "audit:deps": "npm audit --omit=dev"
