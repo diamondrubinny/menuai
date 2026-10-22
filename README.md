@@ -10,7 +10,7 @@
 |---|---|
 | Content | Sections, items, descriptions, prices, price variants (sizes), images, tags (vegan, chef's pick…), the 14 EU allergens, spiciness, calories, sold-out, hidden |
 | Languages | 33 languages in the picker + any BCP-47 code; per-field translations with fallback; RTL (he, ar, fa, ur, yi…); translation progress; editable menu labels per language; guests' browser language auto-selected in exported menus |
-| Design | 16 themes (Noir & Gold, Ivory Bistro, Chalkboard, Neon Night, Aurora Glass, Nordic Minimal, Terracotta, Matcha Zen, Ocean Breeze, Desert Souk, Retro Diner, Garden Brunch, Emerald Deco, Botanical, Brutalist, Sunset), 4 layouts (list, cards, magazine, showcase), 3 opening styles (classic, title over cover photo, split), section banner images, 7 CSS background patterns (dots, grid, waves, terrazzo, arabesque, stripes), "Surprise me" designer combinations, custom colors with live contrast warnings, 12 self-hosted fonts with automatic Hebrew/Arabic/Cyrillic fallbacks, radius, density, text size |
+| Design | 16 themes (Noir & Gold, Ivory Bistro, Chalkboard, Neon Night, Aurora Glass, Nordic Minimal, Terracotta, Matcha Zen, Ocean Breeze, Desert Souk, Retro Diner, Garden Brunch, Emerald Deco, Botanical, Brutalist, Sunset), 4 layouts (list, cards, magazine, showcase), 3 opening styles (classic, title over cover photo, split), section banner images, 7 CSS background patterns (dots, grid, waves, terrazzo, arabesque, stripes), "Surprise me" designer combinations, a generated light/dark version of every theme (auto-corrected to WCAG AA), 8 curated font pairings, custom colors with live contrast warnings, 12 self-hosted fonts with automatic Hebrew/Arabic/Cyrillic fallbacks, radius, density, text size |
 | Effects | Reveal on scroll, glassmorphism, neon glow, aurora, film grain, 3D tilt, shimmer, parallax (scroll-driven), dot leaders, ornaments, pointer spotlight, bokeh lights, rotating gradient borders, Ken Burns zoom — all disabled for `prefers-reduced-motion` and via a "reduce motion" button on the menu |
 | Screens | Container-query layouts: the preview of a tablet behaves exactly like a tablet. Phone / tablet (rotate) / desktop / TV-kiosk previews, full-screen view, A4 print stylesheet |
 | Publishing | Single-file HTML export (fonts + images embedded, strict CSP with script hash, no external requests), print/PDF, QR code (SVG), JSON backup/import |
@@ -70,7 +70,7 @@ src/
 tests/         unit tests        e2e/  Playwright + axe
 ```
 
-Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/PLAN.md). Design 2.0 notes: [`docs/DESIGN_V2.md`](docs/DESIGN_V2.md). Pre-launch checklist: [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
+Full specification, data model, threat model and roadmap: [`docs/PLAN.md`](docs/PLAN.md). Design notes: [`docs/DESIGN_V2.md`](docs/DESIGN_V2.md), [`docs/DESIGN_V2_1.md`](docs/DESIGN_V2_1.md). Pre-launch checklist: [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
 
 ### Adding a theme
 

@@ -663,3 +663,26 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 .pattern-swatch .ma-pattern { position: absolute; inset: 0; z-index: 0; -webkit-mask-image: none; mask-image: none; }
 .pattern-card input:checked + .pattern-swatch { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent); }
 .pattern-card input:focus-visible + .pattern-swatch { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+/* Design 2.1 controls */
+.pair-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.5rem; }
+.pair-card {
+  appearance: none;
+  display: grid;
+  gap: 0.15rem;
+  justify-items: start;
+  padding: 0.6rem 0.7rem;
+  min-height: 88px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: start;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.pair-card:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); }
+.pair-card[aria-pressed='true'] { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
+.pair-display { font-size: 1.45rem; line-height: 1.1; font-weight: 700; }
+.pair-body { font-size: 0.85rem; color: var(--muted); }
+.pair-name { font-size: 0.75rem; font-weight: 700; margin-top: 0.2rem; }

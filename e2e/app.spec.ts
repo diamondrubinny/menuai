@@ -109,3 +109,20 @@ test('"Surprise me" changes the theme and undo restores it', async ({ page }) =>
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.device-screen .ma-menu')).toHaveClass(/ma-theme-noir-gold/);
 });
+
+test('every theme in its alternate light/dark version has no accessibility violations', async ({ page }) => {
+  test.skip(isMobile(page), 'theme matrix runs once');
+  test.setTimeout(180_000);
+  await openTab(page, /Design/);
+  const cards = page.locator('.theme-card');
+  const count = await cards.count();
+  for (let i = 0; i < count; i++) {
+    await cards.nth(i).click();
+    await page.locator('input[name="mode"]').nth(1).check();
+    await expect(page.locator('.device-screen .ma-menu')).toHaveClass(/ma-mode-alt/);
+    await page.waitForTimeout(300);
+    const results = await new AxeBuilder({ page }).include('.device-screen').withTags(['wcag2aa']).analyze();
+    const name = await cards.nth(i).innerText();
+    expect(results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')}`), `${name} (alt)`).toEqual([]);
+  }
+});

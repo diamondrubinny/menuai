@@ -2,7 +2,8 @@ import { useId, type CSSProperties } from 'react';
 import { useMenuStore } from '../../store/menuStore';
 import { useT } from '../../i18n/ui';
 import { EFFECTS, FONT_IDS, HERO_STYLES, LAYOUTS, PALETTE_KEYS, PATTERNS, THEME_IDS, type Design, type FontId, type PaletteKey } from '../../core/schema';
-import { THEMES, resolveDesign, surpriseDesign } from '../../core/themes';
+import { FONT_PAIRS, THEMES, resolveDesign, surpriseDesign } from '../../core/themes';
+import { isDark } from '../../core/color';
 import { FONTS } from '../../core/fonts';
 import { AA_TEXT, contrastRatio } from '../../core/color';
 import { Fieldset, Toggle } from '../fields/Fields';
@@ -69,6 +70,16 @@ export function DesignPanel() {
         ))}
       </Fieldset>
 
+      <Fieldset legend={t('mode')} className="chips">
+        {(['original', 'alt'] as const).map((mode) => (
+          <label key={mode} className="chip">
+            <input type="radio" name="mode" checked={resolved.mode === mode} onChange={() => setDesign({ mode })} />
+            <span>{mode === 'original' ? t('mode_original') : isDark(THEMES[design.theme].palette.bg) ? t('mode_light') : t('mode_dark')}</span>
+          </label>
+        ))}
+        <p className="hint chips-note">{t('modeHint')}</p>
+      </Fieldset>
+
       <Fieldset legend={t('heroStyle')} className="chips">
         {HERO_STYLES.map((heroStyle) => (
           <label key={heroStyle} className="chip">
@@ -115,6 +126,32 @@ export function DesignPanel() {
             {t('resetColors')}
           </button>
         )}
+      </Fieldset>
+
+      <Fieldset legend={t('fontPairs')}>
+        <p className="hint">{t('fontPairsHint')}</p>
+        <div className="pair-grid">
+          {FONT_PAIRS.map((pair) => {
+            const active = resolved.fontDisplay === pair.display && resolved.fontBody === pair.body;
+            return (
+              <button
+                key={pair.id}
+                type="button"
+                className="pair-card"
+                aria-pressed={active}
+                onClick={() => setDesign({ fontDisplay: pair.display, fontBody: pair.body })}
+              >
+                <span className="pair-display" aria-hidden="true" style={{ fontFamily: `"${FONTS[pair.display].family}", "${FONTS.heebo.family}", serif` }}>
+                  Aa אב
+                </span>
+                <span className="pair-body" aria-hidden="true" style={{ fontFamily: `"${FONTS[pair.body].family}", "${FONTS.heebo.family}", sans-serif` }}>
+                  טעים · Tasty
+                </span>
+                <span className="pair-name">{pair.name[lang as 'he' | 'en' | 'ar'] ?? pair.name.en}</span>
+              </button>
+            );
+          })}
+        </div>
       </Fieldset>
 
       <Fieldset legend={t('typography')}>

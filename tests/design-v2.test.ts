@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseMenu, designSchema, THEME_IDS } from '../src/core/schema';
 import { createSampleMenu } from '../src/core/sample';
-import { resolveDesign, surpriseDesign } from '../src/core/themes';
+import { FONT_PAIRS, resolveDesign, surpriseDesign, THEMES } from '../src/core/themes';
+import { FONT_IDS } from '../src/core/schema';
+import { isDark } from '../src/core/color';
 import { exportMenuHtml } from '../src/core/exportHtml';
 
 const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -67,5 +69,32 @@ describe('design 2.0', () => {
     const html = await exportMenuHtml(menu, { embedFonts: false });
     expect(html).toContain('ma-hero-classic');
     expect(html).not.toContain('ma-hero-overlay');
+  });
+
+  it('alt mode flips the palette, custom colors still win, and old menus default to original', () => {
+    const base = designSchema.parse({ theme: 'noir-gold' });
+    expect(resolveDesign(base).mode).toBe('original');
+    const alt = resolveDesign({ ...base, mode: 'alt' });
+    expect(isDark(alt.palette.bg)).toBe(false);
+    const custom = resolveDesign({ ...base, mode: 'alt', palette: { accent: '#123456' } });
+    expect(custom.palette.accent).toBe('#123456');
+    expect(parseMenu({ ...createSampleMenu(), design: { ...base, mode: 'inverted' } }).ok).toBe(false);
+  });
+
+  it('font pairs reference bundled fonts and are unique', () => {
+    expect(new Set(FONT_PAIRS.map((p) => p.id)).size).toBe(FONT_PAIRS.length);
+    for (const p of FONT_PAIRS) {
+      expect(FONT_IDS).toContain(p.display);
+      expect(FONT_IDS).toContain(p.body);
+    }
+  });
+
+  it('marks the final background as light or dark for CSS', async () => {
+    const menu = createSampleMenu();
+    menu.design = { ...menu.design, theme: 'noir-gold', mode: 'alt' };
+    const html = await exportMenuHtml(menu, { embedFonts: false });
+    expect(html).toContain('ma-mode-alt');
+    expect(html).toContain('ma-light');
+    expect(Object.keys(THEMES).length).toBe(16);
   });
 });
