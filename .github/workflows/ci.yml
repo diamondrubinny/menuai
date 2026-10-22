@@ -11,6 +11,21 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      # Real PostgreSQL for the server integration tests (connection loss, timeouts).
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: menuai_test
+          POSTGRES_USER: menuai
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U menuai -d menuai_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,8 +35,34 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:server
+        env:
+          TEST_DATABASE_URL: postgres://menuai:ci-only-password@localhost:5432/menuai_test
+      - run: npm run server:build
       - run: npm audit --omit=dev --audit-level=high
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:
           CI: 'true'
+
+  docker:
+    # Builds the production image and boots the full compose stack (Postgres + API).
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-only-password
+      PUBLIC_URL: https://menu.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build --wait --wait-timeout 180
+      - name: Health check through the published localhost port
+        run: |
+          curl -fsS http://127.0.0.1:3000/api/health | grep -q '"status":"ok"'
+          curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/nope | grep -q 404
+      - name: Runtime image is minimal and non-root
+        run: |
+          test "$(docker compose exec -T api id -u)" != "0"
+          docker compose exec -T api sh -c 'test ! -d /app/node_modules'
+      - if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v
