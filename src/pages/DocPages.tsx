@@ -110,7 +110,7 @@ export function PrivacyPage() {
         </p>
         <h2>אילו נתונים נשמרים ואיפה</h2>
         <ul>
-          <li><strong>טיוטת התפריט</strong> (טקסטים, מחירים, תמונות שהעליתם, הגדרות עיצוב) — נשמרת רק בדפדפן שלכם (localStorage), כדי שלא תאבד בין ביקור לביקור. היא נמחקת כשמנקים את נתוני האתר בדפדפן.</li>
+          <li><strong>טיוטת התפריט</strong> (טקסטים, מחירים, תמונות שהעליתם, הגדרות עיצוב) — נשמרת בדפדפן שלכם (localStorage), כדי שלא תאבד בין ביקור לביקור, ובשרת רק אם בחרתם לשמור בענן. היא נמחקת כשמנקים את נתוני האתר בדפדפן.</li>
           <li><strong>העדפת שפת ממשק</strong> — נשמרת ב־localStorage.</li>
           <li>תמונות שאתם מעלים מעובדות במכשיר עצמו (הקטנה והסרת נתוני EXIF, כמו מיקום GPS), ונשלחות לשרת רק אם שומרים את התפריט בענן (ראו בהמשך).</li>
           <li>הגופנים נטענים מהאתר עצמו (self-hosted), ולא נשלחת שום בקשה ל־Google Fonts.</li>
@@ -133,8 +133,8 @@ export function PrivacyPage() {
           מי שמפרסם את התפריט אחראי לאחסון שלו ולכל כלי שיוסיף לקובץ.
         </p>
         <h2>זכויותיכם</h2>
-        <p>כל הנתונים נמצאים אצלכם: אפשר לייצא אותם (JSON), לתקן או למחוק אותם בכל עת, דרך העורך או דרך הגדרות הדפדפן.</p>
-        <p className="muted">טיוטה טכנית: לפני פרסום נדרשת בדיקה משפטית (חוק הגנת הפרטיות ותיקון 13, GDPR), ובמיוחד אם יתווספו שרת, חשבונות משתמש או כלי מדידה.</p>
+        <p>בלי חשבון, כל הנתונים נמצאים אצלכם: אפשר לייצא אותם (JSON), לתקן או למחוק אותם בכל עת, דרך העורך או דרך הגדרות הדפדפן. מידע שנשמר בשרת אפשר לתקן או למחוק דרך העורך, או בפנייה לבעלים של העסק.</p>
+        <p className="muted">טיוטה טכנית: לפני פרסום נדרשת בדיקה משפטית (חוק הגנת הפרטיות ותיקון 13, GDPR), ובמיוחד כשמשתמשים בשרת ובחשבונות משתמש, או אם יתווספו כלי מדידה.</p>
       </DocShell>
     );
   }
@@ -146,7 +146,7 @@ export function PrivacyPage() {
       <p>The MenuAI editor runs in your browser. Without an account, no data leaves your device. There are no marketing cookies, analytics, pixels or third-party services.</p>
       <h2>What is stored, and where</h2>
       <ul>
-        <li><strong>Your menu draft</strong> (texts, prices, uploaded images, design settings) — stored only in your browser’s localStorage so it survives between visits. Clearing site data removes it.</li>
+        <li><strong>Your menu draft</strong> (texts, prices, uploaded images, design settings) — stored in your browser’s localStorage so it survives between visits, and on the server only if you choose to save it to the cloud. Clearing site data removes it.</li>
         <li><strong>Interface language preference</strong> — stored in localStorage.</li>
         <li>Uploaded images are processed locally (resized, EXIF data such as GPS location removed) and are sent to a server only if you save the menu to the cloud (see below).</li>
         <li>Fonts are self-hosted — no request is made to Google Fonts.</li>
@@ -167,8 +167,8 @@ export function PrivacyPage() {
         Whoever publishes the menu is responsible for its hosting and anything they add to the file.
       </p>
       <h2>Your rights</h2>
-      <p>All data stays with you: you can export (JSON), correct or delete it at any time from the editor or your browser settings.</p>
-      <p className="muted">Technical draft — requires legal review (Israeli Privacy Protection Law incl. Amendment 13, GDPR) before publication, especially if a server, user accounts or analytics are added.</p>
+      <p>Without an account, all data stays with you: you can export (JSON), correct or delete it at any time from the editor or your browser settings. Data on the server can be corrected or deleted from the editor, or by contacting the business owner.</p>
+      <p className="muted">Technical draft — requires legal review (Israeli Privacy Protection Law incl. Amendment 13, GDPR) before publication, especially when the server and user accounts are used, or if analytics are added.</p>
     </DocShell>
   );
 }

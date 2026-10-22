@@ -91,7 +91,7 @@ export function LoginPage({ route }: { route: Route }) {
             />
           </div>
           <button type="submit" className="btn btn-primary" disabled={state.kind === 'sending' || !email.trim()} aria-busy={state.kind === 'sending'}>
-            {state.kind === 'sending' ? t('exporting') : t('loginSend')}
+            {state.kind === 'sending' ? t('sending') : t('loginSend')}
           </button>
         </form>
       )}
