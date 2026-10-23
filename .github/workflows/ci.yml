@@ -41,6 +41,14 @@ jobs:
           TEST_DATABASE_URL: postgres://menuai:ci-only-password@localhost:5432/menuai_test
       - run: npm run server:build
       - run: npm audit --omit=dev --audit-level=high
+      - name: Shell scripts (deploy, backup, restore)
+        run: shellcheck scripts/*.sh
+      - name: SBOM (CycloneDX) of runtime dependencies
+        run: npm sbom --sbom-format cyclonedx --omit=dev > sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:
@@ -79,6 +87,23 @@ jobs:
           curl -fsS -o /dev/null -w '%{content_type}' "http://127.0.0.1:3000$URL" | grep -q image/webp
           # A renamed non-image is refused before it is even scanned.
           test "$(curl -sS -o /dev/null -w '%{http_code}' -H "Origin: $ORIGIN" -H "Cookie: $SESSION" -H 'content-type: image/png' --data-binary '<svg/>' http://127.0.0.1:3000/api/uploads)" = 415
+      - name: Encrypted backup → data loss → restore round trip
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq age >/dev/null
+          age-keygen -o key.txt 2>/dev/null
+          export APP_DIR="$PWD" BACKUP_DIR="$PWD/backups" BACKUP_AGE_RECIPIENT="$(grep -o 'age1[a-z0-9]*' key.txt)"
+          bash scripts/backup.sh
+          ID=$(docker compose exec -T db psql -U menuai -tAc "SELECT id FROM uploads WHERE status = 'clean' LIMIT 1")
+          test -n "$ID"
+          # Simulate losing the data.
+          docker compose exec -T db psql -U menuai -c "DELETE FROM uploads; DELETE FROM users"
+          docker compose exec -T api sh -c 'rm -f /var/lib/menuai/uploads/public/*'
+          test "$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000/media/$ID.webp")" = 404
+          bash scripts/restore.sh backups/menuai-*.tar.age key.txt --yes
+          test "$(docker compose exec -T db psql -U menuai -tAc "SELECT count(*) FROM users WHERE email = 'ci@example.com'")" = 1
+          curl -fsS -o /dev/null "http://127.0.0.1:3000/media/$ID.webp"
+          docker compose exec -T api node dist-server/cli.mjs status
       - if: failure()
         run: docker compose logs --no-color
       - if: always()

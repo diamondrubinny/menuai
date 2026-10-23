@@ -63,5 +63,23 @@ export function clamdScanner(url: string, timeoutMs = 30_000): Scanner {
   };
 }
 
+/** Checks that clamd answers (PING → PONG). */
+export function clamdPing(url: string, timeoutMs = 3000): Promise<boolean> {
+  const { hostname, port } = new URL(url);
+  return new Promise((resolve) => {
+    const socket = connect({ host: hostname, port: Number(port) });
+    let reply = '';
+    const done = (ok: boolean) => {
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.on('error', () => done(false));
+    socket.on('data', (d: Buffer) => (reply += d.toString('utf8')));
+    socket.on('end', () => done(reply.replace(/\0/g, '').trim() === 'PONG'));
+    socket.on('connect', () => socket.end('zPING\0'));
+  });
+}
+
 /** Development only (UPLOADS_ALLOW_UNSCANNED): accepts everything. Never used in production (config refuses it). */
 export const unscanned: Scanner = { scan: async () => ({ clean: true }) };

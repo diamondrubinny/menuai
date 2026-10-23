@@ -1,12 +1,18 @@
 # Cookie policy — DRAFT (requires legal review)
 
-**MenuAI (editor) and menus exported with MenuAI do not use cookies, pixels, analytics or any tracking technology.**
+**Menus published or exported with MenuAI store nothing on guests' devices and use no cookies, pixels,
+analytics or tracking technology.** The editor uses only what is strictly necessary:
 
 | Name | Provider | Type | Purpose | Data | Retention | Third party | Consent needed |
 |---|---|---|---|---|---|---|---|
-| `menuai:menu:v1` | MenuAI (first party) | localStorage | Keep the user's menu draft between visits | Menu content entered by the user | Until the user clears site data | No | No — strictly necessary for a feature the user requested |
-| `menuai:prefs:v1` | MenuAI (first party) | localStorage | Remember interface language | Language code | Until cleared | No | No — functional, user-initiated |
+| `menuai_session` | The business's own MenuAI server (first party) | Cookie: HttpOnly, Secure, SameSite=Strict, `Path=/api` | Keep a team member signed in (only if the optional server is used) | Random session id (stored on the server as a hash) | 30 days, or until sign-out | No | No: strictly necessary for a service the user requested |
+| `menuai:menu:v1` | MenuAI (first party) | localStorage | Keep the menu draft between visits | Menu content entered by the user | Until the user clears site data | No | No: strictly necessary for the feature |
+| `menuai:prefs:v1` | MenuAI (first party) | localStorage | Remember the interface language | Language code | Until cleared | No | No: functional, user-initiated |
+| `menuai:cloud:v1` | MenuAI (first party) | localStorage | Remember which cloud menu this device edits, and whether changes are still unsent | Menu id, version, flag | Until cleared or disconnected | No | No: functional, user-initiated |
 
-Exported menus store nothing on guests' devices (the chosen language is kept only in the URL `?lang=`).
+Exported and published menus keep the chosen language only in the URL (`?lang=`).
 
-If analytics or marketing tools are ever added, this policy, a consent banner (Accept all / Reject all / Manage, rejection as easy as acceptance, no pre-ticked boxes, withdrawable at any time) and a persistent "Privacy & cookie settings" link must be added **before** those tools load.
+If analytics or marketing tools are ever added, this policy, a consent banner, and a persistent
+"Privacy & cookie settings" link must be added **before** those tools load. The banner must offer
+"Accept all", "Reject all" and "Manage" (rejection as easy as acceptance), with no pre-ticked boxes,
+and consent must be withdrawable at any time.

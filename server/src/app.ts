@@ -17,7 +17,8 @@ import { userRoutes } from './users/routes';
 import { menuRoutes } from './menus/routes';
 import { publishRoutes, sendMenuNotFound } from './publish/routes';
 import { createFileStore, type PublishStore } from './publish/store';
-import { uploadRoutes, collectOrphanUploads } from './uploads/routes';
+import { uploadRoutes } from './uploads/routes';
+import { applyRetention } from './maintenance/retention';
 import { createMediaStore, type MediaStore } from './uploads/store';
 import { clamdScanner, unscanned, type Scanner } from './uploads/clamd';
 
@@ -127,14 +128,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (!scanner) app.log.warn('CLAMAV_URL is not set: image uploads are disabled (every upload must be virus scanned).');
   await app.register(uploadRoutes, { media, scanner });
 
-  // Daily cleanup of images no menu uses any more.
+  // Daily retention run: expired tokens and sessions, old audit entries, unused images.
   if (config.NODE_ENV !== 'test') {
     const sweep = () =>
-      collectOrphanUploads(deps.db, media)
-        .then((n) => n && app.log.info({ removed: n }, 'orphan uploads removed'))
-        .catch((err: unknown) => app.log.error({ err }, 'orphan upload cleanup failed'));
+      applyRetention(deps.db, media)
+        .then((report) => app.log.info({ retention: report }, 'retention applied'))
+        .catch((err: unknown) => app.log.error({ err }, 'retention run failed'));
     let timer: ReturnType<typeof setInterval> | undefined;
     app.addHook('onReady', async () => {
+      void sweep();
       timer = setInterval(sweep, 24 * 60 * 60 * 1000);
       timer.unref();
     });

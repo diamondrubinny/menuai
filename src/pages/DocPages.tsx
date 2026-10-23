@@ -125,6 +125,7 @@ export function PrivacyPage() {
           <li><strong>תפריטים בענן:</strong> כשבוחרים „שמירה בענן”, תוכן התפריט (כולל תמונות שהעליתם) נשמר בשרת, יחד עם זהות המשתמש שעדכן אותו לאחרונה ומועד העדכון.</li>
           <li><strong>יומן אבטחה</strong> של פעולות רגישות (כניסות, הזמנות, יצירה, פרסום ומחיקה של תפריטים), ללא תוכן התפריט.</li>
           <li><strong>תמונות שמעלים לתפריט בענן</strong> נסרקות לאיתור נוזקות בשרת עצמו (ClamAV, בלי שליחה לצד שלישי), ומקודדות מחדש כך שכל המטא־דאטה (כולל מיקום GPS) נמחקת. התמונה זמינה בכתובת עם מזהה אקראי, כדי שאורחים יוכלו לראות אותה בתפריט המפורסם.</li>
+          <li><strong>שמירה ומחיקה:</strong> קישורי כניסה נמחקים אחרי 24 שעות, סשנים כשתוקפם פג, ויומן האבטחה אחרי 12 חודשים. כל זה קורה אוטומטית. גיבויים של השרת מוצפנים, ורק מי שמחזיק במפתח הפרטי יכול לפתוח אותם.</li>
           <li><strong>תפריטים מפורסמים</strong> (כתובת <code>/m/…</code>): האורחים לא מקבלים עוגיות, והשרת לא רושם את הביקורים שלהם ביומן.</li>
         </ul>
         <p>לבקשות גישה, תיקון או מחיקה של מידע שבשרת — פנו לבעלים של העסק שמפעיל את האתר.</p>
@@ -160,6 +161,7 @@ export function PrivacyPage() {
         <li><strong>Cloud menus:</strong> when you choose “Save to cloud”, the menu content (including uploaded images) is stored on the server, together with who last updated it and when.</li>
         <li><strong>A security log</strong> of sensitive actions (sign-ins, invitations, creating, publishing and deleting menus), without menu content.</li>
         <li><strong>Images uploaded to a cloud menu</strong> are scanned for malware on the server itself (ClamAV, nothing is sent to third parties) and re-encoded, removing all metadata (including GPS location). Each image is available at a random address so guests can see it in the published menu.</li>
+        <li><strong>Retention:</strong> sign-in links are deleted after 24 hours, sessions when they expire, and the security log after 12 months. All of this is automatic. Server backups are encrypted, and only the holder of the private key can open them.</li>
         <li><strong>Published menus</strong> (<code>/m/…</code> addresses): guests get no cookies, and the server does not log their visits.</li>
       </ul>
       <p>For access, correction or deletion of data on the server, contact the owner of the business that runs this site.</p>
