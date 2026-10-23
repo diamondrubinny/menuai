@@ -152,7 +152,9 @@ cd "$APP_DIR"
 
 step "Building the editor"
 npm ci --no-audit --no-fund --loglevel=error
-npx tsc -p . && npx vite build --logLevel warn
+# Separate lines: under `set -e` a failure on the left of `&&` would not stop the script.
+npx tsc -p .
+npx vite build --logLevel warn
 mkdir -p "$WEB_ROOT"
 rsync -a --delete dist/ "$WEB_ROOT/"
 chown -R www-data:www-data "$WEB_ROOT"
@@ -196,7 +198,8 @@ if [[ "$SKIP_TLS" != 1 ]]; then
   render_nginx /tmp/menuai-nginx-tls 1
   cp /tmp/menuai-nginx-tls/snippets/menuai-security.conf /etc/nginx/snippets/menuai-security.conf
   rm -rf /tmp/menuai-nginx-tls
-  nginx -t && systemctl reload nginx
+  nginx -t
+  systemctl reload nginx
 fi
 
 # --- daily encrypted backups ----------------------------------------------------------------------

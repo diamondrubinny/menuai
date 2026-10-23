@@ -14,11 +14,16 @@ export const ORPHAN_GRACE_HOURS = 24;
  * Returns the number of images removed.
  */
 export async function collectOrphanUploads(db: SqlClient, media: MediaStore, graceHours = ORPHAN_GRACE_HOURS): Promise<number> {
+  // Every referenced image id, extracted in one pass over drafts and stored versions (linear in total size,
+  // instead of re-reading every menu for every image).
   const orphans = await db.query<{ id: string }>(
-    `SELECT u.id FROM uploads u
+    `WITH referenced AS (
+       SELECT DISTINCT (regexp_matches(doc, '/media/([0-9a-f-]{36})\\.webp', 'g'))[1] AS id
+       FROM (SELECT draft::text AS doc FROM menus UNION ALL SELECT data::text FROM menu_versions) docs
+     )
+     SELECT u.id FROM uploads u
      WHERE u.status = 'clean' AND u.created_at < now() - make_interval(hours => $1)
-       AND NOT EXISTS (SELECT 1 FROM menus m WHERE strpos(m.draft::text, u.id::text) > 0)
-       AND NOT EXISTS (SELECT 1 FROM menu_versions v WHERE strpos(v.data::text, u.id::text) > 0)`,
+       AND u.id::text NOT IN (SELECT id FROM referenced WHERE id IS NOT NULL)`,
     [graceHours],
   );
   for (const { id } of orphans) {

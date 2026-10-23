@@ -205,14 +205,18 @@ export async function menuRoutes(app: FastifyInstance, opts: { store: PublishSto
 
   app.delete('/api/menus/:id', { preHandler: owner }, async (req, reply) => {
     const id = parseId(req);
-    await db.transaction(async (tx) => {
+    const publicSlug = await db.transaction(async (tx) => {
+      // Lock the menu first: a publish in progress holds this lock, so we wait for it and then see its
+      // publication row (otherwise a concurrent publish could leave a deleted menu online).
+      const [locked] = await tx.query('SELECT 1 FROM menus WHERE id = $1 FOR UPDATE', [id]);
+      if (!locked) throw notFound();
       const [pub] = await tx.query<{ public_slug: string }>('SELECT public_slug FROM publications WHERE menu_id = $1', [id]);
       const [row] = await tx.query<{ slug: string }>('DELETE FROM menus WHERE id = $1 RETURNING slug', [id]);
-      if (!row) throw notFound();
-      await audit(tx, { userId: req.user!.id, action: 'menu.delete', targetType: 'menu', targetId: id, meta: { slug: row.slug } });
-      // A deleted menu must disappear from its public address too.
-      if (pub) await opts.store.remove(pub.public_slug);
+      await audit(tx, { userId: req.user!.id, action: 'menu.delete', targetType: 'menu', targetId: id, meta: { slug: row!.slug } });
+      return pub?.public_slug ?? null;
     });
+    // After COMMIT: if the transaction had failed, the menu (and its page) would correctly still exist.
+    if (publicSlug) await opts.store.remove(publicSlug);
     return reply.status(204).send();
   });
 }

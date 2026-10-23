@@ -205,12 +205,14 @@ export async function publishRoutes(app: FastifyInstance, opts: { store: Publish
 
   app.post('/api/menus/:id/unpublish', { preHandler: owner }, async (req, reply) => {
     const id = parseId((req.params as { id: string }).id);
-    await db.transaction(async (tx) => {
+    const slug = await db.transaction(async (tx) => {
       const [pub] = await tx.query<{ public_slug: string }>('DELETE FROM publications WHERE menu_id = $1 RETURNING public_slug', [id]);
       if (!pub) throw notFound();
       await audit(tx, { userId: req.user!.id, action: 'menu.unpublish', targetType: 'menu', targetId: id });
-      await store.remove(pub.public_slug);
+      return pub.public_slug;
     });
+    // After COMMIT, so a failed transaction never leaves a "published" menu without its page.
+    await store.remove(slug);
     return reply.status(204).send();
   });
 

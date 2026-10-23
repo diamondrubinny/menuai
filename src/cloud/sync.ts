@@ -232,7 +232,8 @@ export function createCloudSync(deps: SyncDeps): CloudSync {
       headers: { 'if-match': `"${link.version}"` },
     });
     const current = get().link;
-    if (!current || current.menuId !== link.menuId) return; // detached or switched meanwhile
+    // Detached, switched, or replaced meanwhile (e.g. a restore loaded a newer version): this answer is stale.
+    if (!current || current.menuId !== link.menuId || current.version !== link.version) return;
     if (r.ok) {
       retry = 0;
       // Edits made while the request was in flight stay dirty and go out in the next round.
@@ -327,10 +328,12 @@ export function createCloudSync(deps: SyncDeps): CloudSync {
   function localChanged() {
     const link = get().link;
     if (!link) return;
+    // A signed-in viewer can never send edits: keep them local instead of marking the menu "unsent",
+    // which would turn every newer team version into a conflict.
+    if (get().connection === 'ready' && !canWrite()) return set({ status: 'readonly' });
     if (!link.dirty) setLink({ ...link, dirty: true });
     if (get().conflict) return;
     if (get().connection !== 'ready') return set({ status: 'pending' });
-    if (!canWrite()) return set({ status: 'readonly' });
     set({ status: 'saving' });
     schedule(debounceMs);
   }

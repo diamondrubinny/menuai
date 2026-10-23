@@ -39,6 +39,18 @@ The optional self-hosted server is complete: cloud saving, one-click publishing,
 - Published menus are rendered on the server from validated data; no client-supplied HTML is accepted.
 - Unscanned uploads are refused in production, and uploads are disabled when no virus scanner is configured.
 
+### Fixed (pre-release review)
+- Sync:
+  - Undoing back to the version loaded from the server is now synced. Before, publishing could include an edit the user had undone.
+  - A loaded server version is saved locally before its version number is recorded, so a reload in between can no longer overwrite the server with an older menu.
+  - A late save response can no longer roll back the version after a restore.
+  - A viewer's local edits no longer block team updates.
+- Publishing: deleting a menu while it is being published no longer leaves its page online. Files are now removed after the database commits.
+- Uploads:
+  - Uploads interrupted by a crash are cleaned up within an hour.
+  - The unused-image cleanup reads each menu once instead of once per image, so it no longer risks the statement timeout.
+- Install script: a failed type check or nginx test now stops the install instead of deploying a stale editor.
+
 ## [0.1.0] — 2026-10-22
 
 First public version.

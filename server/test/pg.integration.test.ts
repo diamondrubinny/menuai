@@ -70,3 +70,45 @@ describe.skipIf(!url)('node-postgres client (real PostgreSQL)', () => {
     await db.query('DELETE FROM menus WHERE id = $1', [menu!.id]);
   });
 });
+
+describe.skipIf(!url)('delete racing a publish (real PostgreSQL, two connections)', () => {
+  it('a menu deleted while it is being published never stays online', async () => {
+    const { testApp, ORIGIN } = await import('./helpers');
+    const { issueLoginToken, redeemLoginToken } = await import('../src/auth/service');
+    const { createFileStore } = await import('../src/publish/store');
+    const db = createPgClient(url ?? '');
+    await migrate(db);
+    const { app, config } = await testApp({ db });
+    try {
+      const email = `race-${Date.now()}@example.com`;
+      const [owner] = await db.query<{ id: string }>("INSERT INTO users (email, role) VALUES ($1, 'owner') RETURNING id", [email]);
+      const session = await redeemLoginToken(db, (await issueLoginToken(db, owner!.id, 15))!, 'test');
+      const slug = `race-${Date.now()}`;
+      const [menu] = await db.query<{ id: string }>("INSERT INTO menus (slug, draft) VALUES ($1, '{}'::jsonb) RETURNING id", [slug]);
+      const store = createFileStore(config.PUBLISH_DIR);
+
+      // A publish in progress: holds the menu row lock, has written the page, not yet committed.
+      let commit!: () => void;
+      const committed = new Promise<void>((r) => { commit = r; });
+      const publishing = db.transaction(async (tx) => {
+        await tx.query('SELECT 1 FROM menus WHERE id = $1 FOR UPDATE', [menu!.id]);
+        const [v] = await tx.query<{ id: string }>("INSERT INTO menu_versions (menu_id, version, data) VALUES ($1, 1, '{}'::jsonb) RETURNING id", [menu!.id]);
+        await tx.query('INSERT INTO publications (menu_id, public_slug, version_id) VALUES ($1, $2, $3)', [menu!.id, slug, v!.id]);
+        await store.write(slug, '<p>live</p>');
+        await committed;
+      });
+
+      // The owner deletes the menu meanwhile.
+      const deleting = app.inject({ method: 'DELETE', url: `/api/menus/${menu!.id}`, headers: { origin: ORIGIN, cookie: `menuai_session=${session!.sessionToken}` } });
+      await new Promise((r) => setTimeout(r, 300)); // the DELETE is now waiting on the row lock
+      commit();
+      await publishing;
+      expect((await deleting).statusCode).toBe(204);
+      expect(await store.read(slug)).toBeNull();
+      expect((await app.inject({ method: 'GET', url: `/m/${slug}` })).statusCode).toBe(404);
+    } finally {
+      await app.close();
+      await db.close();
+    }
+  });
+});

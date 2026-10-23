@@ -8,6 +8,7 @@ import type { Menu } from '../core/schema';
 import { createCloudSync, type CloudState, type SyncEvent } from '../cloud/sync';
 import { translate, useUiLang, type UiKey } from '../i18n/ui';
 import { useMenuStore } from './menuStore';
+import { saveMenu } from '../core/storage';
 import { dataUrlToBlob, uploadImage } from '../api/uploads';
 import { mapMenuImages, menuImages } from '../core/menuImages';
 import { useFeedback } from './feedbackStore';
@@ -21,15 +22,25 @@ const EVENT_TEXT: Record<SyncEvent, { key: UiKey; kind: 'info' | 'success' | 'er
   opened: { key: 'cloudOpened', kind: 'success' },
 };
 
-/** The last menu that came from the server: loading it must not count as a local edit. */
-let remoteApplied: Menu | null = null;
+/** True only while a server version is being loaded: that change is not a local edit (an undo back to it later is). */
+let applyingRemote = false;
+
+/** Loads a server version into the editor (used by the sync engine; exported for tests). */
+export function applyServerMenu(menu: Menu): void {
+  applyingRemote = true;
+  try {
+    useMenuStore.getState().load(menu);
+  } finally {
+    applyingRemote = false;
+  }
+  // Persist now, not on the autosave debounce: the cloud link (new version, clean) is written right after,
+  // and a reload in between must never pair that link with the previous menu.
+  saveMenu(menu);
+}
 
 export const cloud = createCloudSync({
   getMenu: () => useMenuStore.getState().menu,
-  loadMenu: (menu) => {
-    remoteApplied = menu;
-    useMenuStore.getState().load(menu);
-  },
+  loadMenu: applyServerMenu,
   onEvent: (event) => {
     const { key, kind } = EVENT_TEXT[event];
     useFeedback.getState().notify(translate(useUiLang.getState().lang, key), kind);
@@ -37,7 +48,7 @@ export const cloud = createCloudSync({
 });
 
 useMenuStore.subscribe((state, prev) => {
-  if (state.menu !== prev.menu && state.menu !== remoteApplied) cloud.localChanged();
+  if (state.menu !== prev.menu && !applyingRemote) cloud.localChanged();
 });
 
 if (typeof window !== 'undefined') {

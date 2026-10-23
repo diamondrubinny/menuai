@@ -40,7 +40,9 @@ fi
 echo "==> Building"
 cd "$APP_DIR"
 npm ci --no-audit --no-fund --loglevel=error
-npx tsc -p . && npx vite build --logLevel warn
+# Separate lines: under `set -e` a failure on the left of `&&` would not stop the script.
+npx tsc -p .
+npx vite build --logLevel warn
 
 echo "==> Publishing to $WEB_ROOT"
 mkdir -p "$WEB_ROOT"
@@ -90,7 +92,8 @@ if [[ -n "$EMAIL" ]]; then
   # HSTS only once HTTPS works.
   grep -q Strict-Transport-Security "$SITE" || \
     sed -i "0,/server_tokens off;/s//server_tokens off;\n    add_header Strict-Transport-Security \"max-age=63072000; includeSubDomains\" always;/" "$SITE"
-  nginx -t && systemctl reload nginx
+  nginx -t
+  systemctl reload nginx
 fi
 
 echo "==> Done: http${EMAIL:+s}://$DOMAIN"

@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, type Server, type Socket } from 'node:net';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { testConfig, testDb } from './helpers';
@@ -51,14 +51,38 @@ describe('retention policy', () => {
     );
 
     const report = await applyRetention(db, media());
-    expect(report).toEqual({ loginTokens: 1, sessions: 1, auditLog: 1, rejectedUploads: 1, orphanImages: 0 });
+    expect(report).toEqual({ loginTokens: 1, sessions: 1, auditLog: 1, rejectedUploads: 1, stuckUploads: 0, orphanImages: 0 });
     expect((await db.query<{ token_hash: string }>('SELECT token_hash FROM login_tokens')).map((r) => r.token_hash)).toEqual(['fresh']);
     expect((await db.query<{ token_hash: string }>('SELECT token_hash FROM sessions')).map((r) => r.token_hash)).toEqual(['live']);
     expect((await db.query<{ action: string }>('SELECT action FROM audit_log')).map((r) => r.action)).toEqual(['recent']);
     expect(await n("SELECT count(*) AS n FROM uploads WHERE storage_key = 'r-new'")).toBe(1);
 
     // Idempotent: a second run deletes nothing more.
-    expect(await applyRetention(db, media())).toEqual({ loginTokens: 0, sessions: 0, auditLog: 0, rejectedUploads: 0, orphanImages: 0 });
+    expect(await applyRetention(db, media())).toEqual({ loginTokens: 0, sessions: 0, auditLog: 0, rejectedUploads: 0, stuckUploads: 0, orphanImages: 0 });
+  });
+});
+
+describe('interrupted uploads', () => {
+  it('removes uploads stuck in quarantine (crash mid-scan) with their files, but not ones in progress', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'menuai-stuck-'));
+    const store = createMediaStore(dir);
+    const stuck = '11111111-2222-4333-8444-555555555555';
+    const fresh = '66666666-7777-4888-8999-aaaaaaaaaaaa';
+    await store.quarantine(stuck, Buffer.from('x'));
+    await store.publish(stuck, Buffer.from('half-released'));
+    await store.quarantine(fresh, Buffer.from('y'));
+    await db.query(
+      `INSERT INTO uploads (id, status, mime, bytes, sha256, storage_key, created_at) VALUES
+         ($1, 'quarantine', 'image/png', 1, repeat('a', 64), 'q1', now() - interval '2 hours'),
+         ($2, 'quarantine', 'image/png', 1, repeat('b', 64), 'q2', now() - interval '1 minute')`,
+      [stuck, fresh],
+    );
+    const report = await applyRetention(db, store);
+    expect(report.stuckUploads).toBe(1);
+    expect(await store.read(stuck)).toBeNull();
+    expect(existsSync(path.join(dir, 'quarantine', stuck))).toBe(false);
+    expect(existsSync(path.join(dir, 'quarantine', fresh))).toBe(true);
+    expect((await db.query<{ id: string }>('SELECT id FROM uploads')).map((r) => r.id)).toEqual([fresh]);
   });
 });
 

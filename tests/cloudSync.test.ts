@@ -424,3 +424,46 @@ describe('cloud sync — publishing', () => {
     expect(state().history).toBeNull();
   });
 });
+
+describe('cloud sync — review fixes', () => {
+  it('ignores a save answer that arrives after a restore replaced the version', async () => {
+    server.role = 'owner';
+    linkTo(1);
+    await makeSync().init();
+    await sync.publish(); // version 1 published as v1
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const realApi = server.api;
+    server.api = async (path, init) => {
+      if (init?.method === 'PUT') await gate;
+      return realApi(path, init);
+    };
+    makeSync();
+    await sync.init();
+    edit('In flight');
+    await vi.advanceTimersByTimeAsync(150); // PUT is now waiting at the gate
+    await sync.loadHistory();
+    const restored = sync.restore(state().history!.versions[0]!.id);
+    await vi.advanceTimersByTimeAsync(10);
+    await restored;
+    const afterRestore = state().link!.version;
+    release();
+    await vi.advanceTimersByTimeAsync(10);
+    // The late PUT answer (for the pre-restore version) must not roll the version back.
+    expect(state().link!.version).toBeGreaterThanOrEqual(afterRestore);
+    expect(state().conflict).toBeNull();
+  });
+
+  it("keeps a viewer's local edits local, so newer team versions still load", async () => {
+    server.role = 'viewer';
+    linkTo(1);
+    await makeSync().init();
+    edit('Viewer scribble');
+    expect(state().link!.dirty).toBe(false);
+    expect(state().status).toBe('readonly');
+    server.remoteEdit('Team update');
+    await sync.refresh(true);
+    expect(state().conflict).toBeNull();
+    expect(menu.title.en).toBe('Team update');
+  });
+});

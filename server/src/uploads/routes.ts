@@ -42,14 +42,13 @@ export async function uploadRoutes(app: FastifyInstance, opts: { media: MediaSto
 
       const id = randomUUID();
       const sha = createHash('sha256').update(data).digest('hex');
-      await media.quarantine(id, data);
-      await db.query(
-        `INSERT INTO uploads (id, status, mime, bytes, sha256, storage_key, created_by) VALUES ($1, 'quarantine', $2, $3, $4, $5, $6)`,
-        [id, declared, data.length, sha, `quarantine/${id}`, req.user!.id],
-      );
-
       let result;
       try {
+        await media.quarantine(id, data);
+        await db.query(
+          `INSERT INTO uploads (id, status, mime, bytes, sha256, storage_key, created_by) VALUES ($1, 'quarantine', $2, $3, $4, $5, $6)`,
+          [id, declared, data.length, sha, `quarantine/${id}`, req.user!.id],
+        );
         let verdict;
         try {
           verdict = await scanner.scan(data);

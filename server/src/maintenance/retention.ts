@@ -12,6 +12,8 @@ export const RETENTION = {
   loginTokenHours: 24,
   auditLogMonths: 12,
   rejectedUploadMonths: 12,
+  /** An upload is scanned and processed within seconds; older quarantine rows were interrupted (crash/restart). */
+  stuckQuarantineHours: 1,
 } as const;
 
 export interface RetentionReport {
@@ -19,11 +21,22 @@ export interface RetentionReport {
   sessions: number;
   auditLog: number;
   rejectedUploads: number;
+  stuckUploads: number;
   orphanImages: number;
 }
 
 async function count(db: SqlClient, sql: string, params: unknown[] = []): Promise<number> {
   return (await db.query(`${sql} RETURNING 1`, params)).length;
+}
+
+async function removeStuck(db: SqlClient, media: MediaStore): Promise<number> {
+  const rows = await db.query<{ id: string }>(
+    "DELETE FROM uploads WHERE status = 'quarantine' AND created_at < now() - make_interval(hours => $1) RETURNING id",
+    [RETENTION.stuckQuarantineHours],
+  );
+  // Removes both the quarantined original and any half-released public file.
+  for (const { id } of rows) await media.remove(id);
+  return rows.length;
 }
 
 /** Deletes personal and security data that is no longer needed. Safe to run any time (idempotent). */
@@ -42,6 +55,7 @@ export async function applyRetention(db: SqlClient, media: MediaStore): Promise<
       "DELETE FROM uploads WHERE status = 'rejected' AND created_at < now() - make_interval(months => $1)",
       [RETENTION.rejectedUploadMonths],
     ),
+    stuckUploads: await removeStuck(db, media),
     orphanImages: await collectOrphanUploads(db, media),
   };
 }
