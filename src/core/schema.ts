@@ -30,10 +30,12 @@ export type Localized = z.infer<typeof localizedSchema>;
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 /**
- * Only https URLs or re-encoded raster data URLs are accepted.
+ * Only https URLs, re-encoded raster data URLs, or images uploaded to the MenuAI server
+ * (`/media/<uuid>.webp`, scanned and re-encoded there) are accepted.
  * SVG / HTML / javascript: URLs are rejected to prevent script injection.
  */
-export const IMAGE_SRC_RE = /^(https:\/\/[^\s"'<>()]+|data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+)$/;
+export const MEDIA_SRC_RE = /^\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
+export const IMAGE_SRC_RE = /^(https:\/\/[^\s"'<>()]+|data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+|\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp)$/;
 
 export const imageRefSchema = z.object({
   src: z.string().max(LIMITS.imageDataUrl).regex(IMAGE_SRC_RE),

@@ -26,10 +26,18 @@ const configSchema = z
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).default(300),
     SECURE_COOKIES: bool.optional(),
+    /** clamd for virus scanning uploads, e.g. tcp://clamav:3310. Without it, uploads are disabled. */
+    CLAMAV_URL: z.string().regex(/^tcp:\/\/[A-Za-z0-9.-]+:\d{1,5}$/, 'must be tcp://host:port').optional(),
+    /** Development only: accept uploads without a virus scan. Refused in production. */
+    UPLOADS_ALLOW_UNSCANNED: bool.default(false),
+    UPLOAD_QUOTA_MB: z.coerce.number().int().min(1).max(1_000_000).default(2048),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV === 'production' && !c.PUBLIC_URL.startsWith('https://')) {
       ctx.addIssue({ code: 'custom', path: ['PUBLIC_URL'], message: 'must use https:// in production' });
+    }
+    if (c.NODE_ENV === 'production' && c.UPLOADS_ALLOW_UNSCANNED) {
+      ctx.addIssue({ code: 'custom', path: ['UPLOADS_ALLOW_UNSCANNED'], message: 'is not allowed in production (every upload must be virus scanned)' });
     }
     if (c.SMTP_URL && !c.MAIL_FROM) {
       ctx.addIssue({ code: 'custom', path: ['MAIL_FROM'], message: 'required when SMTP_URL is set' });

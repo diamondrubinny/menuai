@@ -4,7 +4,7 @@
 # MenuAI server stack. Usage:
 #   cp .env.example .env   # then fill in the values
 #   docker compose up -d --build
-# nginx on the host proxies /api to 127.0.0.1:3000 and serves dist/ and published menus.
+# nginx on the host serves dist/ and proxies /api/, /m/ (published menus) and /media/ (images) to 127.0.0.1:3000.
 services:
   db:
     image: postgres:16-alpine
@@ -22,11 +22,27 @@ services:
       retries: 10
     # No published port: the database is reachable only from the api container.
 
+  # Virus scanning for image uploads. Downloads and updates its signatures itself (freshclam).
+  # Needs about 1.5 GB of RAM. Reachable only from the api container.
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
   api:
     build: .
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://menuai:${POSTGRES_PASSWORD}@db:5432/menuai
@@ -39,6 +55,8 @@ services:
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      CLAMAV_URL: tcp://clamav:3310
+      UPLOAD_QUOTA_MB: ${UPLOAD_QUOTA_MB:-2048}
     volumes:
       - published:/var/lib/menuai/published
       - uploads:/var/lib/menuai/uploads
@@ -55,5 +73,6 @@ services:
 
 volumes:
   db-data:
+  clamav-db:
   published:
   uploads:

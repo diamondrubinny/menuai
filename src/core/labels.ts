@@ -30,7 +30,7 @@ export const BUILTIN_LABELS: Record<string, LabelDict> = {
     language: 'שפה', sections: 'קטגוריות בתפריט', reduceMotion: 'הפחתת תנועה', from: 'החל מ־',
     vegan: 'טבעוני', vegetarian: 'צמחוני', glutenFree: 'ללא גלוטן', new: 'חדש', chefPick: 'בחירת השף',
     popular: 'מבוקש', kosher: 'כשר', halal: 'חלאל',
-    gluten: 'גלוטן', crustaceans: 'סרטנאים', eggs: 'ביצים', fish: 'דגים', peanuts: 'בוטנים', soy: 'סויה',
+    gluten: 'גלוטן', crustaceans: 'סרטנים', eggs: 'ביצים', fish: 'דגים', peanuts: 'בוטנים', soy: 'סויה',
     milk: 'חלב', nuts: 'אגוזים', celery: 'סלרי', mustard: 'חרדל', sesame: 'שומשום',
     sulphites: 'סולפיטים', lupin: 'תורמוס', molluscs: 'רכיכות',
   },

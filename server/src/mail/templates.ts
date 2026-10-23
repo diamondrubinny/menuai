@@ -9,8 +9,8 @@ import { CREDIT_LINE } from '../../../src/core/brand';
 /** Bilingual (Hebrew + English) plain-text email. Plain text: no HTML to escape or to be abused. */
 export function loginMail(to: string, link: string, kind: 'login' | 'invite', minutes: number): Mail {
   const he = kind === 'invite'
-    ? `הוזמנת לערוך את התפריט ב־MenuAI.\nלכניסה, לחצו על הקישור (תקף ${minutes / 60} שעות, לשימוש חד־פעמי):`
-    : `לכניסה ל־MenuAI, לחצו על הקישור (תקף ${minutes} דקות, לשימוש חד־פעמי):`;
+    ? `הוזמנתם לערוך את התפריט ב־MenuAI.\nלכניסה לחצו על הקישור. הוא חד־פעמי ותקף ל־${minutes / 60} שעות:`
+    : `לכניסה ל־MenuAI לחצו על הקישור. הוא חד־פעמי ותקף ל־${minutes} דקות:`;
   const en = kind === 'invite'
     ? `You have been invited to edit the menu on MenuAI.\nOpen this link to sign in (valid for ${minutes / 60} hours, single use):`
     : `Open this link to sign in to MenuAI (valid for ${minutes} minutes, single use):`;

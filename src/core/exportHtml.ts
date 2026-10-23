@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import menuCss from '../styles/menu.css?raw';
 import runtimeSource from '../renderer/menuRuntime.js?raw';
 import { MenuRenderer } from '../renderer/MenuRenderer';
-import type { Menu } from './schema';
+import { MEDIA_SRC_RE, type Menu } from './schema';
+import { mapMenuImages } from './menuImages';
 import { resolveDesign } from './themes';
 import { fontFaceCss, requiredFontFiles } from './fonts';
 import type { FontFile } from './fontFiles.generated';
@@ -22,6 +23,13 @@ export interface ExportOptions {
   embedFonts: boolean;
   /** Override font loading (tests / Node). Returns base64 for a font file. */
   loadFont?: (file: FontFile) => Promise<string>;
+  /**
+   * Images uploaded to the MenuAI server (`/media/…`): `inline` embeds them (a downloaded file must work
+   * anywhere, default); `link` keeps the same-origin URL (menus published by that server).
+   */
+  media?: 'inline' | 'link';
+  /** Override loading of `/media/…` images for `inline` (tests). Returns base64 WebP. */
+  loadMedia?: (src: string) => Promise<string>;
 }
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -49,6 +57,12 @@ function toBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+async function fetchMediaBase64(src: string): Promise<string> {
+  const res = await fetch(src, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error(`Image download failed: ${src}`);
+  return toBase64(await res.arrayBuffer());
+}
+
 async function fetchFontBase64(file: FontFile): Promise<string> {
   const res = await fetch(file.url);
   if (!res.ok) throw new Error(`Font download failed: ${file.url}`);
@@ -66,7 +80,13 @@ export function runtimeScript(): string {
 }
 
 /** Builds a single, self-contained HTML file with every language of the menu. */
-export async function exportMenuHtml(menu: Menu, options: ExportOptions): Promise<string> {
+export async function exportMenuHtml(source: Menu, options: ExportOptions): Promise<string> {
+  const mediaMode = options.media ?? 'inline';
+  const loadMedia = options.loadMedia ?? fetchMediaBase64;
+  const menu =
+    mediaMode === 'inline'
+      ? await mapMenuImages(source, async (src) => (MEDIA_SRC_RE.test(src) ? `data:image/webp;base64,${await loadMedia(src)}` : src))
+      : source;
   const design = resolveDesign(menu.design);
   const locale = menu.defaultLocale;
   const title = t(menu.title, locale, locale) || 'Menu';
@@ -100,7 +120,7 @@ export async function exportMenuHtml(menu: Menu, options: ExportOptions): Promis
   const scriptHash = await sha256Base64(script);
   const csp = [
     "default-src 'none'",
-    'img-src data: https:',
+    mediaMode === 'link' ? "img-src 'self' data: https:" : 'img-src data: https:',
     "style-src 'unsafe-inline'",
     'font-src data:',
     `script-src 'sha256-${scriptHash}'`,
@@ -117,6 +137,7 @@ ${CREDIT_COMMENT}
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:,">
 <meta name="color-scheme" content="${dark ? 'dark' : 'light'}">
 <meta name="theme-color" content="${escapeHtml(design.palette.bg)}">
 <meta name="generator" content="${BRAND.name} (open source, ${BRAND.license}) ${BRAND.repo}">

@@ -702,3 +702,99 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 /* Page headings receive focus by script only, to announce the new page to screen readers.
    They are not interactive, so they need no focus ring (WCAG 2.4.7 covers operable controls). */
 .doc-page h1[tabindex='-1']:focus { outline: none; }
+
+/* Cloud sync (Phase 2c) */
+.sync-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.8rem; font-weight: 600; white-space: nowrap;
+  color: var(--success); margin-inline-end: 0.5rem;
+}
+.sync-chip[data-status='saving'], .sync-chip[data-status='readonly'] { color: var(--muted); }
+.sync-chip.is-warn {
+  color: var(--warn-text); background: var(--warn-bg);
+  padding: 0.2rem 0.6rem; border-radius: 999px;
+}
+.sync-chip[data-status='conflict'], .sync-chip[data-status='error'] {
+  color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+}
+@media (max-width: 860px) {
+  .sync-chip:not(.is-warn) { display: none; }
+}
+.cloud-conflict {
+  margin: 0.75rem; padding: 0.85rem 1rem; border-radius: var(--radius);
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+}
+.cloud-conflict p { margin: 0 0 0.6rem; }
+.cloud-conflict-title { font-weight: 800; }
+.cloud-user { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 0; font-size: 0.875rem; overflow-wrap: anywhere; }
+.cloud-menus h3 { font-size: 0.95rem; margin: 0.25rem 0 0.5rem; }
+.cloud-menu-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.cloud-menu-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.55rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
+}
+.cloud-menu-list li.is-current { border-color: var(--primary); background: var(--primary-soft); }
+.cloud-menu-info { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.cloud-current { font-size: 0.8rem; font-weight: 700; color: var(--text); white-space: nowrap; }
+
+/* Publishing (Phase 2d) */
+.cloud-publish { display: grid; gap: 0.6rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.cloud-publish h3 { font-size: 0.95rem; margin: 0; }
+.cloud-live {
+  padding: 0.7rem 0.85rem; border-radius: 10px;
+  border: 1px solid var(--success); background: color-mix(in srgb, var(--success) 10%, var(--panel));
+}
+.cloud-live p { margin: 0; }
+.cloud-live-label { display: flex; align-items: center; gap: 0.45rem; font-weight: 700; font-size: 0.875rem; }
+.cloud-live-url { font-weight: 700; overflow-wrap: anywhere; margin-block: 0.2rem !important; }
+.live-dot {
+  inline-size: 0.6rem; block-size: 0.6rem; border-radius: 50%; background: var(--success);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 60%, transparent);
+  animation: live-pulse 2s ease-out infinite;
+}
+@keyframes live-pulse { to { box-shadow: 0 0 0 0.45rem transparent; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+.badge-live {
+  display: inline-block; margin-inline-start: 0.4rem; padding: 0.05rem 0.45rem; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 800; vertical-align: middle;
+  color: var(--panel); background: var(--success);
+}
+.cloud-history summary { cursor: pointer; font-weight: 700; font-size: 0.875rem; padding-block: 0.3rem; }
+.cloud-history[open] summary { margin-bottom: 0.5rem; }
+.cloud-version-list { list-style: none; margin: 0 0 0.5rem; padding: 0; display: grid; gap: 0.4rem; }
+.cloud-version-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
+}
+
+/* Team management */
+.team-page { max-width: 960px; }
+.team-page h2 { font-size: 1.25rem; margin-top: 2rem; }
+.team-form { display: grid; gap: 0.9rem; max-width: 460px; }
+.team-link { margin-top: 1rem; display: grid; gap: 0.5rem; }
+.team-link p { margin: 0; }
+.team-link-url { overflow-wrap: anywhere; font-weight: 700; }
+.team-table-wrap { overflow-x: auto; }
+.team-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.team-table th, .team-table td { padding: 0.7rem 0.6rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: middle; }
+.team-table thead th { font-size: 0.8rem; color: var(--muted); font-weight: 700; }
+.team-table tbody th { font-weight: 400; }
+.team-table tbody th > span { display: block; }
+.team-name { font-weight: 700; overflow-wrap: anywhere; }
+.team-self { font-weight: 400; color: var(--muted); }
+.team-email { overflow-wrap: anywhere; }
+.team-table tr.is-disabled .team-name { color: var(--muted); }
+.team-badge {
+  display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
+  color: var(--text); background: color-mix(in srgb, var(--success) 16%, var(--panel)); border: 1px solid var(--success);
+}
+.team-badge.is-off { background: var(--panel-2); border-color: var(--border); color: var(--muted); }
+.team-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .team-table thead { display: none; }
+  .team-table, .team-table tbody, .team-table tr, .team-table th, .team-table td { display: block; }
+  .team-table tr { border: 1px solid var(--border); border-radius: 10px; padding: 0.4rem 0.2rem; margin-bottom: 0.75rem; }
+  .team-table th, .team-table td { border: 0; padding: 0.35rem 0.6rem; }
+  .team-actions { justify-content: flex-start; }
+}

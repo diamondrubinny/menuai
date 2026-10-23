@@ -10,5 +10,7 @@ export default defineConfig({
     environment: 'node',
     include: ['server/test/**/*.test.ts'],
     testTimeout: 20_000,
+    // beforeEach starts an in-process PostgreSQL (PGlite); on a busy machine that alone can exceed 10 s.
+    hookTimeout: 30_000,
   },
 });

@@ -4,7 +4,7 @@
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { api, type ApiUser } from '../api/client';
+import { api, isNoServer, type ApiUser } from '../api/client';
 import { useT, type UiKey } from '../i18n/ui';
 import type { Route } from '../router';
 
@@ -21,7 +21,7 @@ const submitted = new Set<string>();
 
 function errorKey(status: number, error: string): UiKey {
   // No server installed (static hosting) or not reachable: unreachable, 404, or a proxy error page.
-  if (status === 0 || status === 404 || status === 502 || status === 503 || (status >= 500 && error === 'unknown')) return 'loginNoServer';
+  if (isNoServer(status, error)) return 'loginNoServer';
   if (error === 'invalid_or_expired') return 'loginLinkInvalid';
   if (status === 429) return 'loginTooMany';
   if (error === 'invalid_email') return 'loginBadEmail';
@@ -91,7 +91,7 @@ export function LoginPage({ route }: { route: Route }) {
             />
           </div>
           <button type="submit" className="btn btn-primary" disabled={state.kind === 'sending' || !email.trim()} aria-busy={state.kind === 'sending'}>
-            {state.kind === 'sending' ? t('exporting') : t('loginSend')}
+            {state.kind === 'sending' ? t('sending') : t('loginSend')}
           </button>
         </form>
       )}

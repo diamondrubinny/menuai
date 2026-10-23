@@ -56,7 +56,8 @@ test('exported HTML is self-contained, switches languages and passes axe', async
   const file = await (await download).path();
   const html = await readFile(file, 'utf8');
   // No external resource is ever loaded (fonts, images, scripts and styles are all inline)…
-  expect(html).not.toMatch(/(src|href)="https?:\/\/[^"]*"(?![^<]*<\/a>)|url\(\s*['"]?https?:|<link\b|@import/i);
+  // (the only <link> is an empty inline icon, which stops browsers from requesting /favicon.ico)
+  expect(html.replace('<link rel="icon" href="data:,">', '')).not.toMatch(/(src|href)="https?:\/\/[^"]*"(?![^<]*<\/a>)|url\(\s*['"]?https?:|<link\b|@import/i);
   // …and the only external address at all is the project credit link.
   const external = new Set(html.match(/https?:\/\/[^\s"'<>)]+/g)?.filter((u) => !u.startsWith('http://www.w3.org')));
   expect([...external]).toEqual(['https://github.com/diamondrubinny/menuai']);
@@ -150,4 +151,23 @@ test('a login link removes its token from the address bar even when it fails', a
   await page.goto(`/#/login?token=${'A'.repeat(43)}`);
   await expect(page.getByRole('main').getByRole('status')).not.toBeEmpty();
   expect(page.url()).not.toContain('token=');
+});
+
+test('cloud section falls back to local mode when no server is installed', async ({ page }) => {
+  await page.goto('/');
+  await openTab(page, /Publish/);
+  const cloud = page.locator('.cloud-section');
+  await expect(cloud).toContainText('Cloud saving needs the MenuAI server');
+  // No sync indicator: the menu is local-only, saved in the browser as before.
+  await expect(page.locator('.sync-chip')).toHaveCount(0);
+  const results = await new AxeBuilder({ page }).include('.cloud-section').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+});
+
+test('team page explains when no server is installed and is accessible', async ({ page }) => {
+  await page.goto('/#/team');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Team');
+  await expect(page.getByRole('main').getByRole('status')).toContainText('Cloud saving needs the MenuAI server');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
 });

@@ -27,6 +27,8 @@ interface MenuState {
   /** Apply a change. `key` groups rapid edits (typing) into a single undo step. */
   update: (fn: Updater, key?: string) => void;
   replace: (menu: Menu) => void;
+  /** Loads a menu from elsewhere (e.g. the cloud) as a fresh start: no undo step back into the previous menu. */
+  load: (menu: Menu) => void;
   undo: () => void;
   redo: () => void;
 
@@ -89,6 +91,8 @@ export const useMenuStore = create<MenuState>((set, get) => {
       const { menu: current, past } = get();
       set({ menu, past: [...past.slice(-HISTORY_LIMIT + 1), current], future: [], lastKey: null });
     },
+
+    load: (menu) => set({ menu, past: [], future: [], lastKey: null }),
 
     undo: () => {
       const { past, menu, future } = get();

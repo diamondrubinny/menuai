@@ -14,6 +14,13 @@ import { forbidden, HttpError } from './errors';
 import type { Mailer } from './mail/mailer';
 import { authRoutes } from './auth/routes';
 import { userRoutes } from './users/routes';
+import { menuRoutes } from './menus/routes';
+import { publishRoutes, sendMenuNotFound } from './publish/routes';
+import { createFileStore, type PublishStore } from './publish/store';
+import { uploadRoutes } from './uploads/routes';
+import { applyRetention } from './maintenance/retention';
+import { createMediaStore, type MediaStore } from './uploads/store';
+import { clamdScanner, unscanned, type Scanner } from './uploads/clamd';
 
 export interface AppDeps {
   config: Config;
@@ -21,6 +28,12 @@ export interface AppDeps {
   mailer: Mailer;
   /** Where logs go (default stdout). Redaction always applies, whatever the destination. */
   logStream?: Writable;
+  /** Published menu files (default: PUBLISH_DIR on disk). */
+  publishStore?: PublishStore;
+  /** Uploaded images (default: UPLOAD_DIR on disk). */
+  mediaStore?: MediaStore;
+  /** Virus scanner for uploads (default: clamd at CLAMAV_URL; null disables uploads). */
+  scanner?: Scanner | null;
 }
 
 declare module 'fastify' {
@@ -72,6 +85,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     errorResponseBuilder: () => ({ statusCode: 429, error: 'rate_limited' }),
   });
   await app.register(cookie);
+  // Responses carry private data (menus, users): never store them in browser or proxy caches.
+  app.addHook('onSend', async (_req, reply) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+  });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) return reply.status(err.statusCode).send({ error: err.code });
@@ -83,7 +100,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return reply.status(500).send({ error: 'internal_error' });
   });
   // Unknown routes are rate-limited too, so scanners probing random paths get throttled.
-  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (_req, reply) => reply.status(404).send({ error: 'not_found' }));
+  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (req, reply) =>
+    req.url.startsWith('/m/') ? sendMenuNotFound(reply) : reply.status(404).send({ error: 'not_found' }),
+  );
 
   // Rate-limited like every route: it touches the database, so it must not be a free amplifier.
   // CSRF defense in depth (on top of SameSite=Strict cookies): data-changing requests must come
@@ -96,6 +115,33 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(authRoutes);
   await app.register(userRoutes);
+  const store = deps.publishStore ?? createFileStore(config.PUBLISH_DIR);
+  await app.register(menuRoutes, { store });
+  await app.register(publishRoutes, { store });
+
+  const media = deps.mediaStore ?? createMediaStore(config.UPLOAD_DIR);
+  const scanner =
+    deps.scanner !== undefined ? deps.scanner
+    : config.CLAMAV_URL ? clamdScanner(config.CLAMAV_URL)
+    : config.UPLOADS_ALLOW_UNSCANNED ? unscanned
+    : null;
+  if (!scanner) app.log.warn('CLAMAV_URL is not set: image uploads are disabled (every upload must be virus scanned).');
+  await app.register(uploadRoutes, { media, scanner });
+
+  // Daily retention run: expired tokens and sessions, old audit entries, unused images.
+  if (config.NODE_ENV !== 'test') {
+    const sweep = () =>
+      applyRetention(deps.db, media)
+        .then((report) => app.log.info({ retention: report }, 'retention applied'))
+        .catch((err: unknown) => app.log.error({ err }, 'retention run failed'));
+    let timer: ReturnType<typeof setInterval> | undefined;
+    app.addHook('onReady', async () => {
+      void sweep();
+      timer = setInterval(sweep, 24 * 60 * 60 * 1000);
+      timer.unref();
+    });
+    app.addHook('onClose', async () => clearInterval(timer));
+  }
 
   app.get('/api/health', async (_req, reply) => {
     try {

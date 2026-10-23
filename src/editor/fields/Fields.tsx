@@ -9,6 +9,8 @@ import { getLocaleInfo } from '../../core/locales';
 import { hasTranslation } from '../../core/localize';
 import { ImageProcessError, normalizeImageUrl, processImageFile } from '../../core/images';
 import { useT, type UiKey } from '../../i18n/ui';
+import { storeImage } from '../../store/cloudStore';
+import { useFeedback } from '../../store/feedbackStore';
 
 interface LocalizedFieldProps {
   label: string;
@@ -144,8 +146,13 @@ export function ImageField({ label, value, onChange, locale, fallbackLocale }: I
     setError(null);
     setBusy(true);
     try {
-      const src = await processImageFile(file);
-      onChange({ src, alt: value?.alt ?? {} });
+      const stored = await storeImage(await processImageFile(file));
+      if ('error' in stored) {
+        setError(t(stored.error === 'rejected' ? 'imageErrRejected' : 'imageErrDecode'));
+        return;
+      }
+      if (stored.embedded) useFeedback.getState().notify(t('imageEmbeddedFallback'), 'info');
+      onChange({ src: stored.src, alt: value?.alt ?? {} });
     } catch (err) {
       const code = err instanceof ImageProcessError ? err.code : 'decode';
       setError(t(IMAGE_ERRORS[code] ?? 'imageErrDecode'));

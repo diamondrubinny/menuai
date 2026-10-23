@@ -36,7 +36,7 @@ export function createSampleMenu(): Menu {
     },
     sections: [
       section(
-        { he: 'פתיחים', en: 'Starters', ar: 'مقبلات' },
+        { he: 'ראשונות', en: 'Starters', ar: 'مقبلات' },
         { he: 'לחלוק, לטעום, להתחיל לאט', en: 'To share, to taste, to begin slowly', ar: 'للمشاركة والتذوق والبداية على مهل' },
         [
           item(
@@ -95,7 +95,7 @@ export function createSampleMenu(): Menu {
           ),
           item(
             { he: 'טארט שוקולד מריר', en: 'Dark chocolate tart', ar: 'تارت الشوكولاتة الداكنة' },
-            { he: '70% קקאו, מלח פלר דה סל, גלידת חלב', en: '70% cacao, fleur de sel, milk ice cream', ar: '70% كاكاو، ملح فلور دو سيل، آيس كريم بالحليب' },
+            { he: '70% קקאו, פלר דה סל, גלידת חלב', en: '70% cacao, fleur de sel, milk ice cream', ar: '70% كاكاو، ملح فلور دو سيل، آيس كريم بالحليب' },
             52, { tags: ['popular'], allergens: ['gluten', 'milk', 'eggs'], soldOut: true },
           ),
         ],
