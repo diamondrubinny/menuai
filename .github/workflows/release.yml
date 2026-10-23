@@ -1,0 +1,47 @@
+# MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
+# Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
+# Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
+# Publishes a GitHub release when a version tag (v1.2.3) is pushed. The notes are the matching
+# section of CHANGELOG.md; the editor build and the source SBOM are attached.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check the tag matches package.json
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            /^## \[/ { if (found) exit; if (index($0, "[" v "]")) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || { echo "No CHANGELOG.md section for $version" >&2; exit 1; }
+      - run: npm run build
+      - name: Package the static editor and the SBOM
+        run: |
+          tar -czf "menuai-editor-${GITHUB_REF_NAME}.tar.gz" -C dist .
+          npm sbom --sbom-format cyclonedx --omit=dev > "menuai-${GITHUB_REF_NAME}.cdx.json"
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "MenuAI ${GITHUB_REF_NAME}" \
+            --notes-file notes.md \
+            "menuai-editor-${GITHUB_REF_NAME}.tar.gz" "menuai-${GITHUB_REF_NAME}.cdx.json"
