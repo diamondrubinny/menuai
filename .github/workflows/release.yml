@@ -1,12 +1,16 @@
 # MenuAI — open-source menu builder · https://github.com/diamondrubinny/menuai
 # Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
 # Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
-# Publishes a GitHub release when a version tag (v1.2.3) is pushed. The notes are the matching
-# section of CHANGELOG.md; the editor build and the source SBOM are attached.
+# Publishes a GitHub release for the version in package.json:
+#  - when a version tag (v1.2.3) is pushed, or
+#  - when main gets a version that has no release yet (bumping package.json + CHANGELOG.md in a
+#    merged PR is enough; the tag is created here).
+# The notes are the matching section of CHANGELOG.md; the editor build and the SBOM are attached.
 name: Release
 
 on:
   push:
+    branches: [main]
     tags: ['v*.*.*']
 
 permissions:
@@ -21,27 +25,51 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - name: Check the tag matches package.json
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-      - name: Release notes from CHANGELOG.md
+      - name: Which version, and is it new?
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          tag="v$(node -p "require('./package.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "$tag" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json ($tag)" >&2; exit 1
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists: nothing to do."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.version.outputs.new == 'true'
+        run: npm ci
+      - name: Release notes from CHANGELOG.md
+        if: steps.version.outputs.new == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          version="${TAG#v}"
           awk -v v="$version" '
             /^## \[/ { if (found) exit; if (index($0, "[" v "]")) { found = 1; next } }
             found { print }
           ' CHANGELOG.md > notes.md
           test -s notes.md || { echo "No CHANGELOG.md section for $version" >&2; exit 1; }
-      - run: npm run build
+      - if: steps.version.outputs.new == 'true'
+        run: npm run build
       - name: Package the static editor and the SBOM
+        if: steps.version.outputs.new == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          tar -czf "menuai-editor-${GITHUB_REF_NAME}.tar.gz" -C dist .
-          npm sbom --sbom-format cyclonedx --omit=dev > "menuai-${GITHUB_REF_NAME}.cdx.json"
-      - name: Create the GitHub release
+          tar -czf "menuai-editor-${TAG}.tar.gz" -C dist .
+          npm sbom --sbom-format cyclonedx --omit=dev > "menuai-${TAG}.cdx.json"
+      - name: Create the GitHub release (and the tag, if it does not exist yet)
+        if: steps.version.outputs.new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "MenuAI ${GITHUB_REF_NAME}" \
+          gh release create "$TAG" --target "$GITHUB_SHA" \
+            --title "MenuAI ${TAG}" \
             --notes-file notes.md \
-            "menuai-editor-${GITHUB_REF_NAME}.tar.gz" "menuai-${GITHUB_REF_NAME}.cdx.json"
+            "menuai-editor-${TAG}.tar.gz" "menuai-${TAG}.cdx.json"
