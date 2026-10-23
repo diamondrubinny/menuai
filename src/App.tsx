@@ -12,6 +12,7 @@ import { ViewPage } from './pages/ViewPage';
 import { AccessibilityPage, PrivacyPage } from './pages/DocPages';
 import { NotFound } from './pages/NotFound';
 import { LoginPage } from './pages/LoginPage';
+import { TeamPage } from './pages/TeamPage';
 
 export function App() {
   const route = useRoute();
@@ -41,6 +42,9 @@ export function App() {
       break;
     case '/login':
       page = <LoginPage route={route} />;
+      break;
+    case '/team':
+      page = <TeamPage />;
       break;
     default:
       page = <NotFound />;

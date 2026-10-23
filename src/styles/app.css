@@ -767,3 +767,34 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
   display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
   padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
 }
+
+/* Team management */
+.team-page { max-width: 960px; }
+.team-page h2 { font-size: 1.25rem; margin-top: 2rem; }
+.team-form { display: grid; gap: 0.9rem; max-width: 460px; }
+.team-link { margin-top: 1rem; display: grid; gap: 0.5rem; }
+.team-link p { margin: 0; }
+.team-link-url { overflow-wrap: anywhere; font-weight: 700; }
+.team-table-wrap { overflow-x: auto; }
+.team-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.team-table th, .team-table td { padding: 0.7rem 0.6rem; border-bottom: 1px solid var(--border); text-align: start; vertical-align: middle; }
+.team-table thead th { font-size: 0.8rem; color: var(--muted); font-weight: 700; }
+.team-table tbody th { font-weight: 400; }
+.team-table tbody th > span { display: block; }
+.team-name { font-weight: 700; overflow-wrap: anywhere; }
+.team-self { font-weight: 400; color: var(--muted); }
+.team-email { overflow-wrap: anywhere; }
+.team-table tr.is-disabled .team-name { color: var(--muted); }
+.team-badge {
+  display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
+  color: var(--text); background: color-mix(in srgb, var(--success) 16%, var(--panel)); border: 1px solid var(--success);
+}
+.team-badge.is-off { background: var(--panel-2); border-color: var(--border); color: var(--muted); }
+.team-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .team-table thead { display: none; }
+  .team-table, .team-table tbody, .team-table tr, .team-table th, .team-table td { display: block; }
+  .team-table tr { border: 1px solid var(--border); border-radius: 10px; padding: 0.4rem 0.2rem; margin-bottom: 0.75rem; }
+  .team-table th, .team-table td { border: 0; padding: 0.35rem 0.6rem; }
+  .team-actions { justify-content: flex-start; }
+}

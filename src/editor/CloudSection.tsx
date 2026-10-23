@@ -150,6 +150,7 @@ export function CloudSection() {
             <span dir="auto">{t('cloudSignedInAs', { email: user.email, role: t(ROLE_KEY[user.role]) })}</span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>{t('cloudSignOut')}</button>
           </p>
+          {user.role === 'owner' && <p><a className="btn btn-sm" href="#/team">👥 {t('teamManage')}</a></p>}
 
           {link ? (
             <>

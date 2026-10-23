@@ -163,3 +163,11 @@ test('cloud section falls back to local mode when no server is installed', async
   const results = await new AxeBuilder({ page }).include('.cloud-section').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(results.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('team page explains when no server is installed and is accessible', async ({ page }) => {
+  await page.goto('/#/team');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Team');
+  await expect(page.getByRole('main').getByRole('status')).toContainText('Cloud saving needs the MenuAI server');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+});
