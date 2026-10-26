@@ -4,6 +4,12 @@
 
 > 🇮🇱 **בעברית:** מערכת קוד פתוח לבניית תפריטים מעוצבים בכל שפה (כולל RTL מלא), עם 16 ערכות עיצוב, 14 אפקטים, 4 פריסות, 3 סגנונות פתיחה, 7 דוגמאות רקע, כפתור "הפתיעו אותי" ותצוגה מקדימה לנייד/טאבלט/מחשב/טלוויזיה. מייצאים קובץ HTML אחד שעובד בכל אחסון, מדפיסים ל־PDF או מפיקים קוד QR. אפיון ותוכנית: [`docs/PLAN.md`](docs/PLAN.md).
 
+![The MenuAI editor: theme gallery on the left and a live phone preview of a Hebrew menu in the Noir & Gold theme](docs/screenshots/editor.webp)
+
+![The same menu exported in four themes on phones: Noir & Gold in English, Ivory Bistro in Hebrew, Chalkboard in English and Neon Night in Hebrew](docs/screenshots/themes.webp)
+
+<sub>Real screenshots of the editor and of exported menus (Noir & Gold, Ivory Bistro, Chalkboard, Neon Night), in English and Hebrew.</sub>
+
 ## Features
 
 | Area | What you get |
