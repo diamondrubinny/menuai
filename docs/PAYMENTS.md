@@ -1,6 +1,6 @@
 # Pay at the table
 
-> Status: **Phase 3a** (this release): the full flow with the built-in **demo provider** (no real money).
+> Status: **Phase 3b**: **Grow (Meshulam)** is implemented and tested against a simulated Grow API that follows Grow's documented contract. **Live mode stays locked** (`PAYMENTS_GROW_LIVE`) until the whole flow has passed in Grow's own sandbox ([below](#grow-sandbox-run-before-going-live)). The built-in demo provider remains for development.
 > **Phase 3b**: Grow (Meshulam), tested end to end against Grow's sandbox. Plan and decisions: [PAYMENTS_PLAN.md](PAYMENTS_PLAN.md).
 
 Guests pay the bill from the table:
@@ -64,7 +64,7 @@ Set `PAYMENTS_ALLOW_FAKE=true` (it is refused in production). The provider "Demo
 | Provider | Status | Notes (*verify with the provider*) |
 |---|---|---|
 | Demo | ✅ 3a | Development and tests only |
-| Grow (Meshulam) | 3b | Server-side `createPaymentProcess` → hosted page; server update → `getPaymentProcessInfo` check → `approveTransaction` (required for every successful transaction). The page needs the payer's full name and Israeli mobile number, which are passed through and not stored. Sandbox: `https://sandbox.meshulam.co.il/api/light/server/1.0/`. Production identifiers are issued after Grow reviews the integration. |
+| Grow (Meshulam) | ✅ 3b (sandbox run pending) | Server-side `createPaymentProcess` → hosted page; server update → `getPaymentProcessInfo` check → `approveTransaction` (required for every successful transaction). The page needs the payer's full name and Israeli mobile number, which are passed through and not stored. Sandbox: `https://sandbox.meshulam.co.il/api/light/server/1.0/`. Production identifiers are issued after Grow reviews the integration. |
 | PayPlus, Cardcom, Tranzila | Later | Same adapter interface (`payments/providers/types.ts`) |
 
 Adding a provider means implementing `PaymentProvider`: `createSession`, `parseNotification`, `matches`, `fetchStatus` and optionally `acknowledge`. Register it in `providers/index.ts` and list its credential fields in `routes.ts`. Then add tests with a mocked provider API.
@@ -80,6 +80,40 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Provider notification log (no names, phones or card data) | Troubleshooting, audit | Legitimate interest | DB | 13 months | — |
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
 | Card / Bit details | Payment | — | **Never reach MenuAI** | — | Provider only |
+
+## Grow: how it works here
+
+| Step | MenuAI does | Source |
+|---|---|---|
+| Checkout | `createPaymentProcess` from the server with `userId`, `pageCode`, `sum` (decimal), `successUrl`, `cancelUrl`, `notifyUrl`, `description` (letters, digits and spaces only), `pageField[fullName]`, `pageField[phone]`, `cField1` = our payment id. It redirects the guest only to an `https` page on `*.meshulam.co.il`, `*.grow.link` or `*.grow.business`. | Grow docs: Regular Payment |
+| Server update | Accepted at `/api/payments/notify/grow` as form fields (`data[...]`, multipart or urlencoded, max 32 KB). It must carry the `processId` + `processToken` we stored (compared in constant time). Otherwise it is ignored. | Grow docs: Server Response |
+| Confirmation | `getPaymentProcessInfo` (server → Grow). The payment counts only with `statusCode` 2 and `sum` equal to the requested amount. Anything else, including an unknown response layout, stays pending. | Grow docs (response layout not published: parsed conservatively) |
+| Acknowledgement | `approveTransaction` with the fields from the update. If it fails, the payment stays recorded and Grow resends the update (at 10, 20 and 30 minutes). | Grow docs: Approve Transaction |
+| Grow unreachable | The notification gets `503` and Grow retries. The guest's result page says "confirming…". | |
+| Payer name and phone | Passed to Grow and **never stored** by MenuAI (a test checks the database). | |
+| Terms | If the owner sets a payment-terms link, guests must tick "I accept the payment terms" (enforced on the server). Grow's production review requires this. | Grow docs: Transition to Production |
+
+## Grow sandbox run (before going live)
+
+Grow sends server updates only to a public HTTPS address (not localhost), so run this on the real server in **test** mode:
+
+1. Ask Grow (`apisupport@grow.business`) for **sandbox** `userId` and `pageCode`, and for server updates to be enabled. Never put them in files or chat: enter them only in **Settings**.
+2. Settings: provider **Grow**, mode **Test**, enter the identifiers and the payment-terms link, then turn it on.
+3. Open a bill and pay from a phone with Grow's sandbox test card `4580458045804580`. Check that:
+   - the staff screen shows **Paid**, with the reference number;
+   - the bill closes when it is fully paid;
+   - the transaction appears as approved in Grow's sandbox dashboard.
+4. Also check:
+   - a split between two phones;
+   - a tip;
+   - cancelling on Grow's page (you return to the table page and nothing is charged);
+   - two phones paying the whole bill at once (the second is refused).
+5. Bit, Apple Pay and Google Pay have no sandbox at Grow and charge real money. Test them in live mode with small amounts.
+6. If anything does not match, export `payment_events` for the time of the test (it holds no personal data), and keep the request ids from the server log.
+7. Request Grow's production review. Then:
+   - set `PAYMENTS_GROW_LIVE=true` in `.env` and restart;
+   - enter the **production** identifiers;
+   - switch the mode to **Live**.
 
 ## Before going live (see also [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) §14)
 

@@ -22,6 +22,7 @@ export interface PaymentSettingsDto {
   provider: ProviderId;
   mode: PaymentMode;
   tipPercents: number[];
+  termsUrl: string | null;
   hasCredentials: boolean;
   updatedAt: string | null;
 }
@@ -66,8 +67,8 @@ export interface Bill {
 
 export const paymentsStatus = () => api<PaymentsStatus>('/payments/status');
 export const getSettings = () =>
-  api<{ settings: PaymentSettingsDto; providers: { id: ProviderId; credentialFields: string[] }[] }>('/payments/settings');
-export const saveSettings = (body: { enabled: boolean; provider: ProviderId; mode: PaymentMode; tipPercents: number[]; credentials?: Record<string, string> | null }) =>
+  api<{ settings: PaymentSettingsDto; providers: { id: ProviderId; credentialFields: string[]; liveAllowed: boolean }[] }>('/payments/settings');
+export const saveSettings = (body: { enabled: boolean; provider: ProviderId; mode: PaymentMode; tipPercents: number[]; termsUrl: string | null; credentials?: Record<string, string> | null }) =>
   api<{ ok: true }>('/payments/settings', { method: 'PUT', body });
 
 export const listTables = () => api<{ tables: DiningTable[] }>('/payments/tables');

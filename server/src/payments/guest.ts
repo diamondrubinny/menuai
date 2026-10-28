@@ -10,7 +10,7 @@ import { HttpError } from '../errors';
 import { publicUrl } from '../publish/routes';
 import { decimalToAgorot, remainingAgorot, shareChoiceSchema, tipChoiceSchema, type ShareChoice, type TipChoice } from './money';
 import { demoProviderPage, guestCsp, pickLocale, resultPage, tableNotFoundPage, tablePage, type GuestErrorCode, type GuestLocale } from './pages';
-import { PROVIDER_IDS, type Payer, type ProviderRef } from './providers/types';
+import { PROVIDER_IDS, ProviderError, type Payer, type ProviderRef } from './providers/types';
 import {
   activeProvider, handleNotification, loadPayment, openBillForTable, startCheckout, tableByToken, totalsOf, verifyPayment,
   type GuestTable,
@@ -85,6 +85,19 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     done(null, out);
   });
 
+  // Grow posts its server update "the same way as createPaymentProcess": multipart/form-data. Text
+  // fields only (no files), small, parsed by the platform's own FormData parser.
+  app.addContentTypeParser('multipart/form-data', { parseAs: 'buffer', bodyLimit: 32 * 1024 }, (req, body, done) => {
+    new Response(new Uint8Array(body as Buffer), { headers: { 'content-type': req.headers['content-type'] ?? '' } })
+      .formData()
+      .then((form) => {
+        const out: Record<string, string> = {};
+        for (const [k, v] of form) if (typeof v === 'string' && !(k in out) && Object.keys(out).length < 100) out[k] = v;
+        done(null, out);
+      })
+      .catch(() => done(Object.assign(new Error('bad form'), { statusCode: 400 }), undefined));
+  });
+
   const sendHtml = (reply: FastifyReply, html: string, formOrigins: readonly string[] = [], status = 200) =>
     reply
       .status(status)
@@ -105,7 +118,7 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     const locale = pickLocale(requested, info0.defaultLocale, req.headers['accept-language']);
     const info = await menuInfo(db, config.PUBLIC_URL, table.menuId, locale);
     const selfPath = `/t/${(req.params as { token: string }).token}`;
-    const active = await activeProvider(db, config);
+    const active = await activeProvider(db, config, app.deps.paymentHttp);
     const common = { locale, tableLabel: table.label, restaurant: info.restaurant, menuUrl: info.menuUrl, selfPath };
     if (!active) return sendHtml(reply, tablePage({ ...common, state: { kind: 'unavailable' } }), [], status);
     const bill = await openBillForTable(db, table.id);
@@ -133,6 +146,7 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
           tipPercents: active.settings.tipPercents,
           requiresPayer: active.provider.requiresPayer,
           testMode: active.settings.mode === 'test',
+          termsUrl: active.settings.termsUrl,
           ...extra,
         },
       }),
@@ -157,13 +171,14 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     if (!table) return notFoundPage(reply, req);
     const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, string>;
     // Echo back what the guest typed (never card data: there is none here) so a fix needs no retyping.
-    const values = Object.fromEntries(['share', 'parts', 'shareAmount', 'tip', 'tipAmount', 'fullName', 'phone'].filter((k) => typeof body[k] === 'string').map((k) => [k, body[k]!.slice(0, 80)]));
+    const values = Object.fromEntries(['share', 'parts', 'shareAmount', 'tip', 'tipAmount', 'fullName', 'phone', 'agree'].filter((k) => typeof body[k] === 'string').map((k) => [k, body[k]!.slice(0, 80)]));
     const fail = (error: GuestErrorCode, status = 400) => renderTable(req, reply, table, { error, values }, status);
 
-    const active = await activeProvider(db, config);
+    const active = await activeProvider(db, config, app.deps.paymentHttp);
     if (!active) return renderTable(req, reply, table);
     const choice = parseForm(body);
     if (typeof choice === 'string') return fail(choice);
+    if (active.settings.termsUrl && body.agree !== 'yes') return fail('terms_required');
     let payer: Payer = { fullName: '', phone: '' };
     if (active.provider.requiresPayer) {
       const parsed = payerSchema.safeParse({ fullName: body.fullName ?? '', phone: body.phone ?? '' });
@@ -213,12 +228,12 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     // Not only "pending": an expired or failed checkout may still have been charged (e.g. the guest
     // retried on the provider's page). Ask before telling anyone they were not charged.
     if (status !== 'paid') {
-      const active = await activeProvider(db, config);
+      const active = await activeProvider(db, config, app.deps.paymentHttp);
       if (active && active.provider.id === payment.provider) {
         try {
           status = await verifyPayment(db, active.provider, payment, 'return');
         } catch (err) {
-          req.log.warn({ err }, 'payment status check failed');
+          req.log.warn({ reason: err instanceof Error ? err.message : 'unknown' }, 'payment status check failed');
         }
       }
     }
@@ -233,18 +248,25 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
   app.post(NOTIFY_ROUTE, { config: { rateLimit: { max: 300, timeWindow: '1 minute' } }, logLevel: 'warn' }, async (req, reply) => {
     const providerId = (req.params as { provider: string }).provider;
     if (!(PROVIDER_IDS as readonly string[]).includes(providerId)) return reply.status(404).send({ error: 'not_found' });
-    const active = await activeProvider(db, config);
+    const active = await activeProvider(db, config, app.deps.paymentHttp);
     // Always 200 for well-formed requests we chose to ignore, so providers don't retry forever.
     if (!active || active.provider.id !== providerId) return reply.send({ ok: true });
-    const outcome = await handleNotification(db, active.provider, req.body, (n) => (n.paymentId ? loadPayment(db, n.paymentId) : Promise.resolve(null)));
-    return reply.send({ ok: true, outcome });
+    try {
+      const outcome = await handleNotification(db, active.provider, req.body, (n) => (n.paymentId ? loadPayment(db, n.paymentId) : Promise.resolve(null)));
+      return reply.send({ ok: true, outcome });
+    } catch (err) {
+      // The provider's status API is unreachable: answer "try later" (providers resend updates).
+      if (!(err instanceof ProviderError)) throw err;
+      req.log.warn({ provider: providerId, reason: err.message }, 'payment status check failed; provider will retry');
+      return reply.status(503).send({ error: 'provider_unavailable' });
+    }
   });
 
   // --- demo provider (development only; never in production) --------------------------------------
 
   async function demoPayment(req: FastifyRequest) {
     if (!config.PAYMENTS_ALLOW_FAKE) return null;
-    const active = await activeProvider(db, config);
+    const active = await activeProvider(db, config, app.deps.paymentHttp);
     if (active?.provider.id !== 'fake') return null;
     const payment = await loadPayment(db, (req.params as { paymentId: string }).paymentId);
     return payment && payment.provider === 'fake' ? { payment, provider: active.provider } : null;

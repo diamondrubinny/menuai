@@ -190,7 +190,7 @@ describe('pay at the table', () => {
 
   it('validates settings: demo is test-only, providers must be available, tips are normalized', async () => {
     expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'live', tipPercents: [] })).json()).toEqual({ error: 'demo_is_test_only' });
-    expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'grow', mode: 'test', tipPercents: [] })).json()).toEqual({ error: 'provider_unavailable' });
+    expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'grow', mode: 'test', tipPercents: [] })).json()).toEqual({ error: 'credentials_required' });
     expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'test', tipPercents: [80] })).statusCode).toBe(400);
     await enable();
     const res = (await call('GET', '/api/payments/settings', 'owner')).json();
@@ -413,6 +413,24 @@ describe('pay at the table', () => {
     const res = await form(`${t.path}/pay`, { share: 'split', parts: 'abc' });
     expect(res.statusCode).toBe(400);
     expect(res.body).not.toContain('NaN');
+  });
+
+  it('requires accepting the payment terms when the owner set a terms page', async () => {
+    const put = (termsUrl: unknown) =>
+      call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'test', tipPercents: [10], termsUrl });
+    expect((await put('http://example.com/terms')).statusCode).toBe(400);
+    expect((await put('javascript:alert(1)')).statusCode).toBe(400);
+    expect((await put('https://lumiere.example/terms?x="<b>')).statusCode).toBe(200);
+    const t = await table();
+    await openBill(t.id, 10000);
+    const page = await call('GET', t.path, 'guest');
+    expect(page.body).toContain('name="agree"');
+    expect(page.body).toContain('href="https://lumiere.example/terms?x=&quot;&lt;b&gt;"');
+    const refused = await form(`${t.path}/pay`, { share: 'full' });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).toContain('צריך לאשר את תנאי התשלום');
+    await checkout(t.path, { share: 'full', agree: 'yes' });
+    expect((await call('GET', '/api/payments/settings', 'owner')).json().settings.termsUrl).toBe('https://lumiere.example/terms?x="<b>');
   });
 
   it('accepts provider notifications without an Origin, but nothing else', async () => {

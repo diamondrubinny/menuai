@@ -323,7 +323,7 @@ a { color: var(--primary); }
 
 .inline-select { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: var(--muted); }
 
-input[type='text'], input[type='url'], input[type='number'], input:not([type]), textarea, select {
+input[type='text'], input[type='url'], input[type='password'], input[type='number'], input:not([type]), textarea, select {
   width: 100%;
   min-height: 42px;
   padding: 0.5rem 0.7rem;

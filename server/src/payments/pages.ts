@@ -39,9 +39,11 @@ const T = {
       nothing_to_pay: 'אין יתרה לתשלום בחשבון הזה.', invalid_share: 'הסכום לא תקין. בדקו שהוא בין ₪1 ליתרה.',
       invalid_tip: 'הטיפ לא תקין.', invalid_payer: 'נא למלא שם מלא (שם פרטי ומשפחה) וטלפון נייד תקין.',
       provider_unavailable: 'חברת הסליקה לא זמינה כרגע. נסו שוב בעוד רגע.', bad_request: 'משהו בטופס לא תקין. נסו שוב.',
+      terms_required: 'כדי לשלם צריך לאשר את תנאי התשלום.',
     },
     demoTitle: 'עמוד תשלום לדוגמה', demoText: 'זהו ספק ההדגמה של MenuAI. בעמוד אמיתי כאן יוזנו פרטי הכרטיס אצל חברת הסליקה.',
     approve: 'אישור התשלום', decline: 'דחיית התשלום',
+    agree: 'קראתי ואני מאשר/ת את', terms: 'תנאי התשלום', newTab: '(נפתח בלשונית חדשה)',
     notFoundTitle: 'הקוד של השולחן לא פעיל', notFoundText: 'ייתכן שהקוד הוחלף. בקשו מהצוות קוד עדכני.',
   },
   en: {
@@ -64,9 +66,11 @@ const T = {
       nothing_to_pay: 'There is nothing left to pay on this bill.', invalid_share: 'That amount is not valid. It must be between ₪1 and the balance.',
       invalid_tip: 'That tip is not valid.', invalid_payer: 'Please enter your full name (first and last) and a valid mobile number.',
       provider_unavailable: 'The payment company is not available right now. Please try again in a moment.', bad_request: 'Something in the form is not valid. Please try again.',
+      terms_required: 'Please accept the payment terms to pay.',
     },
     demoTitle: 'Demo payment page', demoText: 'This is MenuAI’s demo provider. On a real page, card details are entered here, at the payment company.',
     approve: 'Approve payment', decline: 'Decline payment',
+    agree: 'I have read and accept the', terms: 'payment terms', newTab: '(opens in a new tab)',
     notFoundTitle: 'This table code is not active', notFoundText: 'The code may have been replaced. Please ask the staff for the current one.',
   },
   ar: {
@@ -89,9 +93,11 @@ const T = {
       nothing_to_pay: 'لا يوجد مبلغ متبقٍ للدفع في هذا الحساب.', invalid_share: 'المبلغ غير صالح. يجب أن يكون بين ₪1 والمبلغ المتبقي.',
       invalid_tip: 'الإكرامية غير صالحة.', invalid_payer: 'يرجى إدخال الاسم الكامل (الاسم الأول واسم العائلة) ورقم هاتف محمول صالح.',
       provider_unavailable: 'شركة الدفع غير متاحة حاليًا. حاولوا مرة أخرى بعد قليل.', bad_request: 'هناك خطأ في النموذج. حاولوا مرة أخرى.',
+      terms_required: 'يرجى الموافقة على شروط الدفع لإتمام الدفع.',
     },
     demoTitle: 'صفحة دفع تجريبية', demoText: 'هذا مزوّد العرض التجريبي من MenuAI. في الصفحة الحقيقية تُدخل تفاصيل البطاقة هنا لدى شركة الدفع.',
     approve: 'تأكيد الدفع', decline: 'رفض الدفع',
+    agree: 'قرأت وأوافق على', terms: 'شروط الدفع', newTab: '(يفتح في علامة تبويب جديدة)',
     notFoundTitle: 'رمز الطاولة غير فعّال', notFoundText: 'ربما تم استبدال الرمز. اطلبوا من الطاقم الرمز الحالي.',
   },
 } satisfies Record<GuestLocale, unknown>;
@@ -146,6 +152,8 @@ a{color:inherit}a:focus-visible,button:focus-visible,input:focus-visible,select:
 .error{border:2px solid var(--bad);color:var(--bad);border-radius:12px;padding:.6rem .8rem;margin:0 0 1rem;font-weight:700}
 .status{font-size:3rem;line-height:1;margin:.5rem 0}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.opt input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent);flex:none}
 footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:2rem}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
@@ -220,6 +228,7 @@ export interface TablePageInput {
         tipPercents: number[];
         requiresPayer: boolean;
         testMode: boolean;
+        termsUrl: string | null;
         error?: GuestErrorCode;
         values?: Record<string, string>;
       };
@@ -284,6 +293,8 @@ ${tips}
 </fieldset>
 ${payer}
 <p class="total"><span>${esc(s.total)}</span><span id="total" aria-live="polite">${money(st.remaining, p.locale)}</span></p>
+${st.termsUrl ? `<p class="opt"><input type="checkbox" id="agree" name="agree" value="yes" required${v.agree === 'yes' ? ' checked' : ''}>
+<label for="agree">${esc(s.agree)} <a href="${esc(st.termsUrl)}" target="_blank" rel="noopener noreferrer">${esc(s.terms)}<span class="visually-hidden"> ${esc(s.newTab)}</span></a></label></p>` : ''}
 <button class="btn" type="submit">🔒 ${esc(s.payNow)}</button>
 <p class="note">${esc(s.secure)}</p>
 </form>`;

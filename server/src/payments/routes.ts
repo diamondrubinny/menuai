@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { requireRole } from '../auth/guard';
 import { audit } from '../auth/service';
 import { badRequest, conflict, HttpError, notFound } from '../errors';
-import { availableProviders } from './providers';
+import { availableProviders, modeAllowed } from './providers';
 import { PROVIDER_IDS } from './providers/types';
 import { activeProvider, BILL_SELECT, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
 
@@ -64,7 +64,8 @@ export async function paymentRoutes(app: FastifyInstance) {
     return {
       configured: Boolean(config.PAYMENTS_KEY),
       providers,
-      enabled: Boolean(settings?.enabled && providers.includes(settings.provider)),
+      // On only when guests can really pay: enabled, available here, allowed mode, credentials present.
+      enabled: Boolean(settings?.enabled && (await activeProvider(db, config, app.deps.paymentHttp))),
       provider: settings?.provider ?? null,
       mode: settings?.mode ?? null,
     };
@@ -79,10 +80,11 @@ export async function paymentRoutes(app: FastifyInstance) {
         provider: s.provider,
         mode: s.mode,
         tipPercents: s.tipPercents,
+        termsUrl: s.termsUrl,
         hasCredentials: s.credentials !== null,
         updatedAt: s.updatedAt,
       },
-      providers: availableProviders(config).map((id) => ({ id, credentialFields: CREDENTIAL_FIELDS[id] })),
+      providers: availableProviders(config).map((id) => ({ id, credentialFields: CREDENTIAL_FIELDS[id], liveAllowed: modeAllowed(config, id, 'live') })),
     };
   });
 
@@ -94,6 +96,7 @@ export async function paymentRoutes(app: FastifyInstance) {
         provider: z.enum(PROVIDER_IDS),
         mode: z.enum(['test', 'live']),
         tipPercents: z.array(z.number().int().min(1).max(50)).max(5),
+        termsUrl: z.url({ protocol: /^https$/ }).max(500).nullable().default(null),
         credentials: z.record(z.string().regex(/^[A-Za-z]{1,40}$/), z.string().trim().min(1).max(200)).nullable().optional(),
       })
       .strict()
@@ -102,6 +105,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const next = body.data;
     if (!availableProviders(config).includes(next.provider)) throw badRequest('provider_unavailable');
     if (next.provider === 'fake' && next.mode === 'live') throw badRequest('demo_is_test_only');
+    if (!modeAllowed(config, next.provider, next.mode)) throw badRequest('live_not_enabled');
     if (next.credentials) {
       const fields = CREDENTIAL_FIELDS[next.provider];
       const keys = Object.keys(next.credentials);
@@ -204,7 +208,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const q = z.object({ view: z.enum(['open', 'recent']).default('open') }).safeParse(req.query);
     if (!q.success) throw badRequest();
     // Abandoned checkouts stop showing as "being paid" (checked with the provider first).
-    await releaseStaleCheckouts(db, await activeProvider(db, config));
+    await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp));
     // "Open" also lists recent bills with money that needs a refund or review, so staff can't miss them.
     const where =
       q.data.view === 'open'
@@ -259,7 +263,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const id = parseId(req);
     const body = z.object({ amountAgorot: amountSchema.optional(), note: noteSchema.optional() }).strict().safeParse(req.body);
     if (!body.success) throw badRequest();
-    await releaseStaleCheckouts(db, await activeProvider(db, config), id);
+    await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp), id);
     await db.transaction(async (tx) => {
       const [locked] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);
       if (!locked) throw notFound();
@@ -297,7 +301,7 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.post('/api/payments/bills/:id/cancel', { preHandler: editor }, async (req) => {
     configured();
     const id = parseId(req);
-    await releaseStaleCheckouts(db, await activeProvider(db, config), id);
+    await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp), id);
     await db.transaction(async (tx) => {
       // Lock the bill: a checkout starting right now waits, then sees the bill is no longer open.
       const [bill] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);

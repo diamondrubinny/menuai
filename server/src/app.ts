@@ -36,6 +36,8 @@ export interface AppDeps {
   mediaStore?: MediaStore;
   /** Virus scanner for uploads (default: clamd at CLAMAV_URL; null disables uploads). */
   scanner?: Scanner | null;
+  /** HTTP client for payment provider APIs (default: global fetch; tests pass a fake provider server). */
+  paymentHttp?: typeof fetch;
 }
 
 declare module 'fastify' {

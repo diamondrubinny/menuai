@@ -43,7 +43,7 @@ export function captureMailer(configured = true): Mailer & { sent: Mail[] } {
 
 export const ORIGIN = 'http://localhost:5173';
 
-export async function testApp(opts: { config?: Record<string, string>; db?: SqlClient; logs?: string[]; mailer?: Mailer; publishStore?: PublishStore; scanner?: Scanner | null } = {}) {
+export async function testApp(opts: { config?: Record<string, string>; db?: SqlClient; logs?: string[]; mailer?: Mailer; publishStore?: PublishStore; scanner?: Scanner | null; paymentHttp?: typeof fetch } = {}) {
   const db = opts.db ?? (await testDb());
   const config = testConfig(opts.config);
   const logs = opts.logs;
@@ -53,6 +53,7 @@ export async function testApp(opts: { config?: Record<string, string>; db?: SqlC
     mailer: opts.mailer ?? captureMailer(),
     publishStore: opts.publishStore,
     scanner: opts.scanner,
+    paymentHttp: opts.paymentHttp,
     logStream: logs ? new Writable({ write(chunk, _enc, cb) { logs.push(String(chunk)); cb(); } }) : undefined,
   });
   return { app, db, config, mailer: opts.mailer };

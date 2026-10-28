@@ -92,7 +92,7 @@ A `fake` provider is used in tests and the demo (no real money).
 | Phase | Content |
 |---|---|
 | 3a ✅ | Adapter interface + `fake` provider, tables/bills/payments schema, staff screen, `/pay` page with tip/split, webhook pipeline, tests |
-| 3b | First real Israeli provider (sandbox) end to end |
+| 3b ✅ (code; sandbox run pending) | First real Israeli provider (sandbox) end to end |
 | 3c | Second provider + Stripe/PayPal (if supported) |
 | 3d | Receipts/invoices integration, refunds, daily report, production checklist update |
 | 3e (optional) | Order-and-pay cart (flow B) |

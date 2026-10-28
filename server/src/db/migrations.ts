@@ -185,4 +185,11 @@ CREATE TABLE payment_events (
 CREATE INDEX payment_events_at ON payment_events (at);
 `,
   },
+  {
+    id: '0004_payment_terms',
+    sql: `
+-- The restaurant's payment terms page; when set, guests must accept it before paying (Grow's review requires it).
+ALTER TABLE payment_settings ADD COLUMN terms_url text CHECK (terms_url ~ '^https://' AND length(terms_url) <= 500);
+`,
+  },
 ];

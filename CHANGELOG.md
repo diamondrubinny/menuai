@@ -5,6 +5,12 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
 ## [Unreleased]
 
 ### Added
+- **Pay at the table, Phase 3b: Grow (Meshulam)** ([docs/PAYMENTS.md](docs/PAYMENTS.md)):
+  - **Checkout:** `createPaymentProcess` sends the guest to Grow's hosted page (card, Bit, wallets).
+  - **Server updates:** accepted as form fields. They must carry the stored process token, and are confirmed with `getPaymentProcessInfo` (statusCode 2, exact amount) before the payment counts. `approveTransaction` then follows.
+  - **Privacy:** the payer's name and phone go to Grow only and are never stored.
+  - **Live mode stays locked** until the sandbox run has passed (`PAYMENTS_GROW_LIVE`).
+- **Payment terms:** owners can set a link to their payment terms; guests must accept them before paying. Grow's production review requires this.
 - **Pay at the table, Phase 3a** ([docs/PAYMENTS.md](docs/PAYMENTS.md), plan in [docs/PAYMENTS_PLAN.md](docs/PAYMENTS_PLAN.md)):
   - **Guests:** they scan a table's QR code or use the table tablet. They pay the whole bill, split it equally, or pay any amount, and can add a tip, then pay on the provider's hosted page. The pages are in Hebrew, English and Arabic, work without JavaScript, and target WCAG 2.1 AA.
   - **Staff screen** (`#/payments`):

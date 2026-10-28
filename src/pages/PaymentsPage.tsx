@@ -29,6 +29,7 @@ const ERRORS: Record<string, UiKey> = {
   invalid_credentials: 'payErrCredentials',
   provider_unavailable: 'payErrProvider',
   payments_not_configured: 'payNotConfigured',
+  live_not_enabled: 'payGrowLiveLocked',
 };
 const errorKey = (error: string, status: number): UiKey => ERRORS[error] ?? (status === 400 ? 'payErrInvalid' : status === 429 ? 'loginTooMany' : 'payErrFailed');
 
@@ -459,9 +460,9 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
   const id = useId();
   const notify = useFeedback((s) => s.notify);
-  const [loaded, setLoaded] = useState<{ settings: PaymentSettingsDto; providers: { id: ProviderId; credentialFields: string[] }[] } | null>(null);
+  const [loaded, setLoaded] = useState<{ settings: PaymentSettingsDto; providers: { id: ProviderId; credentialFields: string[]; liveAllowed: boolean }[] } | null>(null);
   const [failed, setFailed] = useState(false);
-  const [form, setForm] = useState({ enabled: false, provider: 'fake' as ProviderId, mode: 'test' as PaymentMode, tips: '' });
+  const [form, setForm] = useState({ enabled: false, provider: 'fake' as ProviderId, mode: 'test' as PaymentMode, tips: '', terms: '' });
   const [creds, setCreds] = useState<Record<string, string>>({});
   const [error, setError] = useState<UiKey | null>(null);
   const [saving, setSaving] = useState(false);
@@ -472,7 +473,7 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
     setLoaded(r.data);
     const s = r.data.settings;
     const provider = r.data.providers.some((p) => p.id === s.provider) ? s.provider : (r.data.providers[0]?.id ?? s.provider);
-    setForm({ enabled: s.enabled, provider, mode: s.mode, tips: s.tipPercents.join(', ') });
+    setForm({ enabled: s.enabled, provider, mode: s.mode, tips: s.tipPercents.join(', '), terms: s.termsUrl ?? '' });
     setCreds({});
   }, []);
 
@@ -491,6 +492,8 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
     const parts = form.tips.split(/[,\s]+/).filter(Boolean);
     const tipPercents = parts.map(Number);
     if (parts.length > 5 || tipPercents.some((n) => !Number.isInteger(n) || n < 1 || n > 50)) return setError('payErrTips');
+    const termsUrl = form.terms.trim() || null;
+    if (termsUrl && !/^https:\/\/[^\s]+$/.test(termsUrl)) return setError('payErrTermsUrl');
     const typed = Object.fromEntries(fields.map((f) => [f, (creds[f] ?? '').trim()]));
     const anyTyped = Object.values(typed).some(Boolean);
     if (anyTyped && Object.values(typed).some((v) => !v)) return setError('payErrCredentials');
@@ -500,6 +503,7 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
       provider: form.provider,
       mode: form.mode,
       tipPercents,
+      termsUrl,
       ...(fields.length === 0 ? {} : anyTyped ? { credentials: typed } : {}),
     });
     setSaving(false);
@@ -525,16 +529,26 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
         <legend>{t('payMode')}</legend>
         {(['test', 'live'] as const).map((m) => (
           <label key={m} className="radio-row">
-            <input type="radio" name={`${id}-mode`} value={m} checked={form.mode === m} disabled={m === 'live' && form.provider === 'fake'} onChange={() => setForm({ ...form, mode: m })} />
+            <input
+              type="radio" name={`${id}-mode`} value={m} checked={form.mode === m}
+              disabled={m === 'live' && !loaded.providers.find((p) => p.id === form.provider)?.liveAllowed}
+              onChange={() => setForm({ ...form, mode: m })}
+            />
             {t(m === 'test' ? 'payModeTest' : 'payModeLive')}
           </label>
         ))}
         {form.mode === 'live' && <p className="notice" role="note">{t('payLiveWarning')}</p>}
+        {form.provider === 'grow' && !loaded.providers.find((p) => p.id === 'grow')?.liveAllowed && <p className="hint">{t('payGrowLiveLocked')}</p>}
       </fieldset>
       <div className="field">
         <label htmlFor={`${id}-tips`}>{t('payTipOptions')}</label>
         <input id={`${id}-tips`} type="text" inputMode="numeric" dir="ltr" value={form.tips} onChange={(e) => setForm({ ...form, tips: e.target.value })} aria-describedby={`${id}-tips-h`} />
         <p className="hint" id={`${id}-tips-h`}>{t('payTipsHint')}</p>
+      </div>
+      <div className="field">
+        <label htmlFor={`${id}-terms`}>{t('payTermsUrl')}</label>
+        <input id={`${id}-terms`} type="url" inputMode="url" dir="ltr" placeholder="https://" maxLength={500} value={form.terms} onChange={(e) => setForm({ ...form, terms: e.target.value })} aria-describedby={`${id}-terms-h`} />
+        <p className="hint" id={`${id}-terms-h`}>{t('payTermsUrlHint')}</p>
       </div>
       {fields.length > 0 && (
         <fieldset className="field">

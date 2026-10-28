@@ -12,6 +12,7 @@ import { HttpError, notFound } from '../errors';
 import { computeCharge, type BillTotals, type Charge, type ShareChoice, type TipChoice } from './money';
 import { open, seal } from './crypto';
 import { createProvider } from './providers';
+import type { Http } from './providers/grow';
 import { ProviderError, type Notification, type Payer, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
 
 /**
@@ -28,6 +29,8 @@ export interface PaymentSettings {
   mode: PaymentMode;
   credentials: Record<string, string> | null;
   tipPercents: number[];
+  /** Restaurant's payment terms (https). When set, guests must accept them before paying. */
+  termsUrl: string | null;
   updatedAt: Date | null;
 }
 
@@ -37,16 +40,17 @@ interface SettingsRow {
   mode: PaymentMode;
   credentials_enc: string | null;
   tip_percents: number[];
+  terms_url: string | null;
   updated_at: Date;
 }
 
 export const DEFAULT_SETTINGS: PaymentSettings = {
-  enabled: false, provider: 'fake', mode: 'test', credentials: null, tipPercents: [10, 12, 15], updatedAt: null,
+  enabled: false, provider: 'fake', mode: 'test', credentials: null, tipPercents: [10, 12, 15], termsUrl: null, updatedAt: null,
 };
 
 export async function loadSettings(db: SqlClient, config: Config): Promise<PaymentSettings> {
   const [row] = await db.query<SettingsRow>(
-    'SELECT enabled, provider, mode, credentials_enc, tip_percents, updated_at FROM payment_settings WHERE id = 1',
+    'SELECT enabled, provider, mode, credentials_enc, tip_percents, terms_url, updated_at FROM payment_settings WHERE id = 1',
   );
   if (!row) return DEFAULT_SETTINGS;
   let credentials: Record<string, string> | null = null;
@@ -64,6 +68,7 @@ export async function loadSettings(db: SqlClient, config: Config): Promise<Payme
     mode: row.mode,
     credentials,
     tipPercents: row.tip_percents.map(Number),
+    termsUrl: row.terms_url,
     updatedAt: row.updated_at,
   };
 }
@@ -72,18 +77,18 @@ export async function saveSettings(
   db: SqlClient,
   config: Config,
   userId: string,
-  next: { enabled: boolean; provider: ProviderId; mode: PaymentMode; tipPercents: number[]; credentials?: Record<string, string> | null },
+  next: { enabled: boolean; provider: ProviderId; mode: PaymentMode; tipPercents: number[]; termsUrl: string | null; credentials?: Record<string, string> | null },
 ): Promise<void> {
   if (!config.PAYMENTS_KEY) throw new HttpError(503, 'payments_not_configured');
   // undefined = keep the stored credentials; null = remove them; object = replace them.
   const credentialsSql = next.credentials === undefined ? 'payment_settings.credentials_enc' : '$5';
   const sealed = next.credentials ? seal(JSON.stringify(next.credentials), config.PAYMENTS_KEY) : null;
   await db.query(
-    `INSERT INTO payment_settings (id, enabled, provider, mode, credentials_enc, tip_percents, updated_by, updated_at)
-     VALUES (1, $1, $2, $3, $5, $4, $6, now())
-     ON CONFLICT (id) DO UPDATE SET enabled = $1, provider = $2, mode = $3, tip_percents = $4,
+    `INSERT INTO payment_settings (id, enabled, provider, mode, credentials_enc, tip_percents, terms_url, updated_by, updated_at)
+     VALUES (1, $1, $2, $3, $5, $4, $7, $6, now())
+     ON CONFLICT (id) DO UPDATE SET enabled = $1, provider = $2, mode = $3, tip_percents = $4, terms_url = $7,
        credentials_enc = ${credentialsSql}, updated_by = $6, updated_at = now()`,
-    [next.enabled, next.provider, next.mode, next.tipPercents, sealed, userId],
+    [next.enabled, next.provider, next.mode, next.tipPercents, sealed, userId, next.termsUrl],
   );
   await audit(db, {
     userId,
@@ -95,11 +100,15 @@ export async function saveSettings(
 }
 
 /** The adapter guests pay through right now, or null when payments are off or not set up. */
-export async function activeProvider(db: SqlClient, config: Config): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
+export async function activeProvider(
+  db: SqlClient,
+  config: Config,
+  http?: Http,
+): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
   if (!config.PAYMENTS_KEY) return null;
   const settings = await loadSettings(db, config);
   if (!settings.enabled) return null;
-  const provider = createProvider(config, settings);
+  const provider = createProvider(config, settings, http);
   return provider ? { provider, settings } : null;
 }
 
@@ -360,7 +369,14 @@ export async function handleNotification(
     return 'ignored';
   }
   const outcome = await verifyPayment(db, provider, payment, 'notify');
-  if (outcome === 'paid' && provider.acknowledge) await provider.acknowledge(payment.provider_ref, n);
+  if (outcome === 'paid' && provider.acknowledge) {
+    try {
+      await provider.acknowledge(payment.provider_ref, n);
+    } catch {
+      // The payment is already recorded; the provider simply sends the update again later.
+      await event(db, payment.id, provider.id, 'notify', 'ack_failed');
+    }
+  }
   return outcome;
 }
 

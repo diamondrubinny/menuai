@@ -38,6 +38,8 @@ const configSchema = z
       .optional(),
     /** Development only: the built-in demo provider that takes no real money. Refused in production. */
     PAYMENTS_ALLOW_FAKE: bool.default(false),
+    /** Allows Grow's live mode. Set only after the full flow passed in Grow's sandbox (docs/PAYMENTS.md). */
+    PAYMENTS_GROW_LIVE: bool.default(false),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV === 'production' && !c.PUBLIC_URL.startsWith('https://')) {
