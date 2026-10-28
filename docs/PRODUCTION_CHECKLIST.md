@@ -98,6 +98,8 @@ Phase 1 (editor only, no server) is a subset: skip the server sections.
 | Audit log (no menu content) | Security, accountability | Legitimate interest | PostgreSQL | 12 months (enforced) | — |
 | Menu content and images | The service | Contract | PostgreSQL + disk | Until deleted; unused images 24 hours; 50 published versions per menu | — |
 | Rejected upload records (no file) | Security | Legitimate interest | PostgreSQL | 12 months (enforced) | — |
+| Pay at the table: bills, payments (amounts, tip, status, provider ref) | Payment, accounting | Contract, legal obligation | PostgreSQL | ⚖️ per tax law (typically 7 years) | Payment provider holds the transaction — **DPA** |
+| Payer name + mobile (Grow only) | Provider's receipt | Contract | **Not stored**; passed to the provider | — | Payment provider — **DPA** |
 | Guests of published menus | — | — | Nothing stored by MenuAI. nginx log: truncated IP, path, status, 14 days (logrotate) | 14 days | — |
 | Backups | Recovery | Legitimate interest | Encrypted (age) on the server + your off-site copy | 14 days on the server; ⚖️ define off-site retention | Storage provider, if any — encrypted, **DPA** |
 
@@ -140,6 +142,25 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
 - 🧑 `docker compose exec api node dist-server/cli.mjs status` returns `OK` for everything. Hook `/api/health` to an uptime monitor.
 - 🧑 Disk space alerts, using the free-space line in `status`. ClamAV needs about 1.5 GB of RAM; the full stack about 2.5 GB.
 - 🧑 Know where the security events are: `audit_log` table (sign-ins, invites, role changes, publish/unpublish/restore/delete, infected uploads, CLI actions).
+
+## 14. Pay at the table ([docs/PAYMENTS.md](PAYMENTS.md))
+- 🧑 `PAYMENTS_KEY` is set (32 random bytes) and a copy is in a password manager. Backups do not include `.env`.
+- 🧑 `PAYMENTS_ALLOW_FAKE` is **not** set (the config refuses it in production anyway).
+- 🧑 The whole flow passes in **test mode** on real phones (iOS Safari, Android Chrome) and on the table tablet:
+  - pay in full;
+  - split equally;
+  - a custom amount;
+  - a tip;
+  - decline;
+  - two guests paying at once.
+- 🧑 Before going **live** with Grow: Grow's production review is done (server updates answered with HTTP 200, `approveTransaction` sent). Production identifiers are entered in Settings, not in files.
+- 🧑 Printed table QR codes open `/t/…` (nginx forwards `/t/` and `/pay/` to the API). If a printed code leaks, use **Replace QR code**.
+- 🧑 Waiters (editors) can open, adjust and close bills. Only owners can change settings and tables (try it with an editor account).
+- 🧑 The nginx log shows `/t/[table]`, never the table code.
+- ⚖️ Receipts and tax invoices: who issues them, and the allocation-number rules. An accountant must confirm.
+- ⚖️ Payment terms, the cancellation/refund policy and the privacy policy payments section, checked by a lawyer. A DPA with the payment provider.
+- 🌐 An Arabic native speaker reviews the guest pages.
+- 🔍 A penetration test covers `/t/`, `/pay/` and `/api/payments/notify/`.
 
 ## Requires professional sign-off
 - ⚖️ Lawyer / privacy officer:

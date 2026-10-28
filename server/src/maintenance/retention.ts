@@ -14,6 +14,10 @@ export const RETENTION = {
   rejectedUploadMonths: 12,
   /** An upload is scanned and processed within seconds; older quarantine rows were interrupted (crash/restart). */
   stuckQuarantineHours: 1,
+  /** A checkout nobody finished: the guest closed the provider's page. */
+  abandonedPaymentHours: 24,
+  /** Provider notification log (no personal data); payments themselves are accounting records and stay. */
+  paymentEventMonths: 13,
 } as const;
 
 export interface RetentionReport {
@@ -23,6 +27,8 @@ export interface RetentionReport {
   rejectedUploads: number;
   stuckUploads: number;
   orphanImages: number;
+  abandonedPayments: number;
+  paymentEvents: number;
 }
 
 async function count(db: SqlClient, sql: string, params: unknown[] = []): Promise<number> {
@@ -57,5 +63,11 @@ export async function applyRetention(db: SqlClient, media: MediaStore): Promise<
     ),
     stuckUploads: await removeStuck(db, media),
     orphanImages: await collectOrphanUploads(db, media),
+    abandonedPayments: await count(
+      db,
+      "UPDATE payments SET status = 'expired' WHERE status = 'pending' AND created_at < now() - make_interval(hours => $1)",
+      [RETENTION.abandonedPaymentHours],
+    ),
+    paymentEvents: await count(db, 'DELETE FROM payment_events WHERE at < now() - make_interval(months => $1)', [RETENTION.paymentEventMonths]),
   };
 }

@@ -13,6 +13,7 @@ import { AccessibilityPage, PrivacyPage } from './pages/DocPages';
 import { NotFound } from './pages/NotFound';
 import { LoginPage } from './pages/LoginPage';
 import { TeamPage } from './pages/TeamPage';
+import { PaymentsPage } from './pages/PaymentsPage';
 
 export function App() {
   const route = useRoute();
@@ -45,6 +46,9 @@ export function App() {
       break;
     case '/team':
       page = <TeamPage />;
+      break;
+    case '/payments':
+      page = <PaymentsPage />;
       break;
     default:
       page = <NotFound />;

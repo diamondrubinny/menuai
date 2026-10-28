@@ -35,7 +35,7 @@ export async function runCli(args: string[], db: SqlClient, publicUrl: string, c
     const r = await applyRetention(db, createMediaStore(config.UPLOAD_DIR));
     return {
       code: 0,
-      out: `Retention applied: ${r.loginTokens} sign-in links, ${r.sessions} expired sessions, ${r.auditLog} old audit entries, ${r.rejectedUploads} rejected upload records, ${r.stuckUploads} interrupted uploads, ${r.orphanImages} unused images removed.`,
+      out: `Retention applied: ${r.loginTokens} sign-in links, ${r.sessions} expired sessions, ${r.auditLog} old audit entries, ${r.rejectedUploads} rejected upload records, ${r.stuckUploads} interrupted uploads, ${r.orphanImages} unused images removed; ${r.abandonedPayments} abandoned checkouts expired, ${r.paymentEvents} old payment events removed.`,
     };
   }
   if (config && command === 'status') {

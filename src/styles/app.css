@@ -798,3 +798,32 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
   .team-table th, .team-table td { border: 0; padding: 0.35rem 0.6rem; }
   .team-actions { justify-content: flex-start; }
 }
+
+/* Pay at the table (staff screen) */
+.pay-sections { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0.5rem; }
+.pay-page h2:focus { outline: none; }
+.pay-page h3 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+.pay-card { border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin: 0 0 1rem; background: var(--panel); }
+.pay-form { display: grid; gap: 0.9rem; max-width: 460px; }
+.pay-form fieldset { border: 0; padding: 0; margin: 0; }
+.pay-form legend { font-weight: 700; margin-bottom: 0.35rem; }
+.pay-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem; margin-top: 1.5rem; }
+.pay-toolbar h3 { margin: 0; }
+.pay-bills, .pay-tables, .pay-payments { list-style: none; padding: 0; margin: 0.75rem 0 0; }
+.pay-tables { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.pay-tables .pay-card { margin: 0; }
+.pay-table.is-disabled { opacity: 0.75; }
+.pay-bill-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; justify-content: space-between; margin-bottom: 0.5rem; }
+.pay-sums { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin: 0.25rem 0 0.75rem; }
+.pay-sums div { display: grid; }
+.pay-sums dt { font-size: 0.8rem; color: var(--muted); }
+.pay-sums dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pay-progress { block-size: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-bottom: 0.75rem; }
+.pay-progress span { display: block; block-size: 100%; background: var(--success); }
+.pay-payments li { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.pay-actions { justify-content: flex-start; margin-top: 0.75rem; }
+.pay-amount-input { inline-size: 8rem; }
+.pay-review { color: var(--danger, #a1271c); }
+.pay-qr { display: flex; justify-content: center; padding: 0.5rem; background: #fff; border-radius: 8px; margin: 0.5rem 0; }
+.radio-row { display: flex; align-items: center; gap: 0.5rem; min-block-size: 2.25rem; }
+.field-check { display: flex; align-items: center; gap: 0.5rem; }

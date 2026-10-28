@@ -4,6 +4,12 @@
 
 > 🇮🇱 **בעברית:** מערכת קוד פתוח לבניית תפריטים מעוצבים בכל שפה (כולל RTL מלא), עם 16 ערכות עיצוב, 14 אפקטים, 4 פריסות, 3 סגנונות פתיחה, 7 דוגמאות רקע, כפתור "הפתיעו אותי" ותצוגה מקדימה לנייד/טאבלט/מחשב/טלוויזיה. מייצאים קובץ HTML אחד שעובד בכל אחסון, מדפיסים ל־PDF או מפיקים קוד QR. אפיון ותוכנית: [`docs/PLAN.md`](docs/PLAN.md).
 
+![The MenuAI editor: theme gallery on the left and a live phone preview of a Hebrew menu in the Noir & Gold theme](docs/screenshots/editor.webp)
+
+![The same menu exported in four themes on phones: Noir & Gold in English, Ivory Bistro in Hebrew, Chalkboard in English and Neon Night in Hebrew](docs/screenshots/themes.webp)
+
+<sub>Real screenshots of the editor and of exported menus (Noir & Gold, Ivory Bistro, Chalkboard, Neon Night), in English and Hebrew.</sub>
+
 ## Features
 
 | Area | What you get |
@@ -43,6 +49,7 @@ The editor works on its own. The optional self-hosted server adds:
 | | |
 |---|---|
 | **Team accounts** | Passwordless magic-link sign-in; owner / editor / viewer roles; a **Team** screen (`#/team`) to invite, change roles, disable and re-invite ([`docs/TEAM_UI.md`](docs/TEAM_UI.md)); CLI for the first owner |
+| **Pay at the table** | Guests scan the table's QR (or use the table tablet), pay the whole bill, split it or pay any amount, add a tip, and pay on the payment company's secure page. Card details never reach MenuAI. Waiters see payments arrive live; the bill closes itself when paid. Demo provider today; Grow (Meshulam) next ([`docs/PAYMENTS.md`](docs/PAYMENTS.md)) |
 | **Cloud sync** | **Publish → Cloud** saves the menu in one click; every edit autosaves; open it on any device; optimistic locking means two devices never overwrite each other silently |
 | **Publishing** | **Publish now** renders the menu on the server at a permanent address (`https://menu.example.com/m/<name>`) whose QR code never changes; version history with restore |
 | **Image uploads** | Quarantine → local ClamAV virus scan → re-encoded to WebP with all metadata (GPS) removed; **Move images to the server** converts embedded ones |
@@ -164,3 +171,14 @@ MenuAI shows a **"Powered by MenuAI · Open source"** credit on every menu (prev
 ## Licenses
 
 Code: [GNU AGPL-3.0-only](LICENSE) with **additional attribution terms** (Section 7) in [`NOTICE`](NOTICE), © 2026 Diamond Rubinny and MenuAI contributors. You may use, modify and redistribute MenuAI freely; if you run a modified version as a network service, you must offer its source to its users; and the "Powered by MenuAI · Open source" credit and the license notices must be kept. Versions published before this change remain available under MIT. Fonts: bundled from [Fontsource](https://fontsource.org) under the SIL Open Font License 1.1, which permits embedding them in exported menus.
+
+
+---
+
+## 💼 Commercial license & rights acquisition
+
+MenuAI is free and open source under the AGPL-3.0. If you are interested in a **commercial license** (use without AGPL obligations), **white-label / exclusive rights**, or **acquiring full rights to the code**, send your proposal to **[d@rubinny.net](mailto:d@rubinny.net)**.
+
+Please include: who you are (company / contact), how you intend to use the code, and your offer.
+
+> 🇮🇱 מעוניינים ברישיון מסחרי, בזכויות בלעדיות או ברכישת הזכויות בקוד? שלחו הצעה ל-**[d@rubinny.net](mailto:d@rubinny.net)** — כולל פרטי קשר, אופן השימוש המתוכנן וההצעה שלכם.

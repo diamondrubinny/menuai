@@ -31,6 +31,13 @@ const configSchema = z
     /** Development only: accept uploads without a virus scan. Refused in production. */
     UPLOADS_ALLOW_UNSCANNED: bool.default(false),
     UPLOAD_QUOTA_MB: z.coerce.number().int().min(1).max(1_000_000).default(2048),
+    /** 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts payment provider credentials. Without it, payments are off. */
+    PAYMENTS_KEY: z
+      .string()
+      .refine((v) => Buffer.from(v, 'base64').length === 32, 'must be 32 bytes, base64 (openssl rand -base64 32)')
+      .optional(),
+    /** Development only: the built-in demo provider that takes no real money. Refused in production. */
+    PAYMENTS_ALLOW_FAKE: bool.default(false),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV === 'production' && !c.PUBLIC_URL.startsWith('https://')) {
@@ -38,6 +45,9 @@ const configSchema = z
     }
     if (c.NODE_ENV === 'production' && c.UPLOADS_ALLOW_UNSCANNED) {
       ctx.addIssue({ code: 'custom', path: ['UPLOADS_ALLOW_UNSCANNED'], message: 'is not allowed in production (every upload must be virus scanned)' });
+    }
+    if (c.NODE_ENV === 'production' && c.PAYMENTS_ALLOW_FAKE) {
+      ctx.addIssue({ code: 'custom', path: ['PAYMENTS_ALLOW_FAKE'], message: 'is not allowed in production (the demo provider takes no real money)' });
     }
     if (c.SMTP_URL && !c.MAIL_FROM) {
       ctx.addIssue({ code: 'custom', path: ['MAIL_FROM'], message: 'required when SMTP_URL is set' });

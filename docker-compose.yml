@@ -57,6 +57,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       CLAMAV_URL: tcp://clamav:3310
       UPLOAD_QUOTA_MB: ${UPLOAD_QUOTA_MB:-2048}
+      # Encrypts payment provider credentials; without it, pay at the table is off (docs/PAYMENTS.md).
+      PAYMENTS_KEY: ${PAYMENTS_KEY:-}
     volumes:
       - published:/var/lib/menuai/published
       - uploads:/var/lib/menuai/uploads

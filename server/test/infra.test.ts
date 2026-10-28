@@ -26,7 +26,8 @@ describe('migrations', () => {
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
     )).map((r) => r.table_name);
     expect(tables).toEqual([
-      'audit_log', 'login_tokens', 'menu_versions', 'menus', 'publications', 'schema_migrations', 'sessions', 'uploads', 'users',
+      'audit_log', 'bills', 'dining_tables', 'login_tokens', 'menu_versions', 'menus', 'payment_events', 'payment_settings', 'payments', 'publications',
+      'schema_migrations', 'sessions', 'uploads', 'users',
     ]);
     expect(await migrate(db)).toEqual([]);
     await db.close();

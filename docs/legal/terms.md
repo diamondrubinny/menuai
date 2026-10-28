@@ -18,5 +18,15 @@
 6. **Data.**
    - **Without the server,** the editor stores data only in your browser. Clearing browser data deletes your draft, so keep JSON backups.
    - **With the server,** see the privacy policy and the retention policy.
-7. **Accessibility.** MenuAI aims for WCAG 2.1 AA. The accessibility of the final menu also depends on your content (alt text, custom colors).
-8. **Changes.** These terms may change; the version in the repository is the current one.
+7. **Pay at the table (optional, server only).**
+   - The payment itself is made on the payment company's hosted page, under its terms. MenuAI's developers are not a party to it and never receive card details.
+   - The operator (the restaurant) is responsible for:
+     - its agreement with the payment company;
+     - the bill amounts it enters;
+     - receipts and tax invoices;
+     - refunds;
+     - showing guests its payment and cancellation terms.
+   - A payment shows as paid only after the payment company confirms it to the server. If a guest was charged but the page did not confirm it, the staff screen shows the payment once the company confirms it.
+   - ⚖️ Guest-facing payment terms and the refund policy must be written for the specific business and reviewed by a lawyer.
+8. **Accessibility.** MenuAI aims for WCAG 2.1 AA. The accessibility of the final menu also depends on your content (alt text, custom colors).
+9. **Changes.** These terms may change; the version in the repository is the current one.

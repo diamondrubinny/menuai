@@ -113,4 +113,76 @@ ALTER TABLE uploads ADD COLUMN scan_result text CHECK (length(scan_result) <= 20
 CREATE INDEX uploads_status_created ON uploads (status, created_at);
 `,
   },
+  {
+    id: '0003_payments',
+    sql: `
+-- Pay the bill from the table (docs/PAYMENTS_PLAN.md). Money is integer agorot; no card data is ever stored.
+CREATE TABLE payment_settings (
+  id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  enabled boolean NOT NULL DEFAULT false,
+  provider text NOT NULL DEFAULT 'fake' CHECK (provider IN ('fake', 'grow')),
+  mode text NOT NULL DEFAULT 'test' CHECK (mode IN ('test', 'live')),
+  credentials_enc text,
+  tip_percents smallint[] NOT NULL DEFAULT '{10,12,15}',
+  updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE dining_tables (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  label text NOT NULL CHECK (length(label) BETWEEN 1 AND 40),
+  token text NOT NULL UNIQUE CHECK (token ~ '^[A-Za-z0-9_-]{22}$'),
+  menu_id uuid REFERENCES menus(id) ON DELETE SET NULL,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX dining_tables_label ON dining_tables (lower(label));
+
+CREATE TYPE bill_status AS ENUM ('open', 'paid', 'closed', 'cancelled');
+CREATE TABLE bills (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  table_id uuid NOT NULL REFERENCES dining_tables(id) ON DELETE RESTRICT,
+  amount_agorot integer NOT NULL CHECK (amount_agorot BETWEEN 100 AND 10000000),
+  note text NOT NULL DEFAULT '' CHECK (length(note) <= 200),
+  status bill_status NOT NULL DEFAULT 'open',
+  opened_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  opened_at timestamptz NOT NULL DEFAULT now(),
+  closed_at timestamptz
+);
+-- One open bill per table.
+CREATE UNIQUE INDEX bills_one_open ON bills (table_id) WHERE status = 'open';
+CREATE INDEX bills_status_opened ON bills (status, opened_at DESC);
+
+CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'expired');
+CREATE TABLE payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bill_id uuid NOT NULL REFERENCES bills(id) ON DELETE RESTRICT,
+  share_agorot integer NOT NULL CHECK (share_agorot > 0),
+  tip_agorot integer NOT NULL DEFAULT 0 CHECK (tip_agorot >= 0),
+  status payment_status NOT NULL DEFAULT 'pending',
+  provider text NOT NULL,
+  mode text NOT NULL CHECK (mode IN ('test', 'live')),
+  -- The provider's identifiers for this payment (e.g. Grow processId/processToken). Never card data.
+  provider_ref jsonb NOT NULL DEFAULT '{}'::jsonb,
+  provider_txn text CHECK (length(provider_txn) <= 100),
+  -- Set when money arrived that the bill could no longer take (staff must refund or review).
+  review_reason text CHECK (review_reason IN ('bill_not_open', 'overpaid')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  paid_at timestamptz
+);
+CREATE INDEX payments_bill ON payments (bill_id, status);
+CREATE INDEX payments_pending ON payments (created_at) WHERE status = 'pending';
+
+-- Provider notifications, minimal (no names, phones or card details): for troubleshooting and audit.
+CREATE TABLE payment_events (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  payment_id uuid REFERENCES payments(id) ON DELETE SET NULL,
+  provider text NOT NULL,
+  kind text NOT NULL CHECK (length(kind) <= 40),
+  outcome text NOT NULL CHECK (length(outcome) <= 40),
+  at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX payment_events_at ON payment_events (at);
+`,
+  },
 ];
