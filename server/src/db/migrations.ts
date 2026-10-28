@@ -165,6 +165,8 @@ CREATE TABLE payments (
   -- The provider's identifiers for this payment (e.g. Grow processId/processToken). Never card data.
   provider_ref jsonb NOT NULL DEFAULT '{}'::jsonb,
   provider_txn text CHECK (length(provider_txn) <= 100),
+  -- Set when money arrived that the bill could no longer take (staff must refund or review).
+  review_reason text CHECK (review_reason IN ('bill_not_open', 'overpaid')),
   created_at timestamptz NOT NULL DEFAULT now(),
   paid_at timestamptz
 );

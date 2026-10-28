@@ -243,10 +243,11 @@ export function tablePage(p: TablePageInput): string {
 
   const v = st.values ?? {};
   const checked = (name: string, value: string, dflt: boolean) => ((v[name] ?? (dflt ? value : undefined)) === value ? ' checked' : '');
+  const parts = Math.min(MAX_SPLIT_PARTS, Math.max(2, Math.trunc(Number(v.parts)) || 2));
   const partsOptions = Array.from({ length: MAX_SPLIT_PARTS - 1 }, (_, i) => i + 2)
-    .map((n) => `<option value="${n}"${String(n) === (v.parts ?? '2') ? ' selected' : ''}>${n}</option>`)
+        .map((n) => `<option value="${n}"${n === parts ? ' selected' : ''}>${n}</option>`)
     .join('');
-  const each = Math.min(st.remaining, Math.ceil(st.amount / Number(v.parts ?? 2)));
+  const each = Math.min(st.remaining, Math.ceil(st.amount / parts));
   const tips = st.tipPercents
     .map(
       (pct) => `<label class="opt"><input type="radio" name="tip" value="${pct}"${checked('tip', String(pct), false)}> ${pct}%

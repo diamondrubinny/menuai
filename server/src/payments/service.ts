@@ -4,6 +4,7 @@
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 import { randomBytes } from 'node:crypto';
+import { z } from 'zod';
 import type { Config } from '../config';
 import type { SqlClient } from '../db/sql';
 import { audit } from '../auth/service';
@@ -13,7 +14,10 @@ import { open, seal } from './crypto';
 import { createProvider } from './providers';
 import { ProviderError, type Notification, type Payer, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
 
-/** A checkout reserves its share this long, so two guests can't both pay the whole bill at once. */
+/**
+ * A checkout reserves its share, so two guests can't both pay the whole bill at once. After this long
+ * the reservation may be released, but only after asking the provider (see releaseStaleCheckouts).
+ */
 export const RESERVATION_MINUTES = 20;
 
 // --- settings ---------------------------------------------------------------------------------------
@@ -127,7 +131,7 @@ export interface BillRow {
 export const BILL_SELECT = `
   SELECT b.id, b.table_id, b.amount_agorot, b.note, b.status, b.opened_at, b.closed_at,
     COALESCE(sum(p.share_agorot) FILTER (WHERE p.status = 'paid'), 0)::int AS paid_agorot,
-    COALESCE(sum(p.share_agorot) FILTER (WHERE p.status = 'pending' AND p.created_at > now() - make_interval(mins => ${RESERVATION_MINUTES})), 0)::int AS pending_agorot,
+    COALESCE(sum(p.share_agorot) FILTER (WHERE p.status = 'pending'), 0)::int AS pending_agorot,
     COALESCE(sum(p.tip_agorot) FILTER (WHERE p.status = 'paid'), 0)::int AS tips_agorot
   FROM bills b LEFT JOIN payments p ON p.bill_id = b.id`;
 
@@ -176,6 +180,8 @@ export async function startCheckout(
   input: CheckoutInput,
 ): Promise<{ paymentId: string; redirectUrl: string; charge: Charge }> {
   const { provider, settings } = active;
+  const open = await openBillForTable(db, input.table.id);
+  if (open && open.pending_agorot > 0) await releaseStaleCheckouts(db, active, open.id);
   const reserved = await db.transaction(async (tx) => {
     const [locked] = await tx.query<{ id: string }>(
       "SELECT id FROM bills WHERE table_id = $1 AND status = 'open' FOR UPDATE",
@@ -219,15 +225,16 @@ export interface PaymentRow {
   share_agorot: number;
   tip_agorot: number;
   status: 'pending' | 'paid' | 'failed' | 'expired';
+  review_reason: ReviewReason | null;
   provider: ProviderId;
   provider_ref: ProviderRef;
   created_at: Date;
 }
 
 export async function loadPayment(db: SqlClient, id: string): Promise<PaymentRow | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  if (!z.uuid().safeParse(id).success) return null;
   const [row] = await db.query<PaymentRow>(
-    'SELECT id, bill_id, share_agorot, tip_agorot, status, provider, provider_ref, created_at FROM payments WHERE id = $1',
+    'SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at FROM payments WHERE id = $1',
     [id],
   );
   return row ?? null;
@@ -238,6 +245,13 @@ async function event(db: SqlClient, paymentId: string | null, provider: string, 
 }
 
 export type VerifyOutcome = 'paid' | 'failed' | 'pending' | 'amount_mismatch';
+
+/**
+ * Why a confirmed payment needs a person: money was taken (so it is recorded as paid) but the bill
+ * could no longer take it, e.g. a guest finished paying on the provider's page after the bill was
+ * paid by someone else, closed or cancelled. Staff see it flagged for a refund or review.
+ */
+export type ReviewReason = 'bill_not_open' | 'overpaid';
 
 /**
  * Asks the provider (server-to-server) what happened, and records it. Idempotent: verifying a paid
@@ -256,22 +270,30 @@ export async function verifyPayment(db: SqlClient, provider: PaymentProvider, pa
     }
     const marked = await db.transaction(async (tx) => {
       // Lock the bill first (same order as checkout), then flip the payment exactly once.
-      await tx.query('SELECT 1 FROM bills WHERE id = $1 FOR UPDATE', [payment.bill_id]);
-      const [row] = await tx.query<{ id: string }>(
-        "UPDATE payments SET status = 'paid', paid_at = now(), provider_txn = $2 WHERE id = $1 AND status <> 'paid' RETURNING id",
-        [payment.id, status.transactionRef?.slice(0, 100) ?? null],
+      const [bill] = await tx.query<{ status: string; amount_agorot: number; paid_other: number }>(
+        `SELECT b.status, b.amount_agorot,
+           (SELECT COALESCE(sum(share_agorot), 0)::int FROM payments WHERE bill_id = b.id AND status = 'paid' AND id <> $2) AS paid_other
+         FROM bills b WHERE b.id = $1 FOR UPDATE`,
+        [payment.bill_id, payment.id],
       );
-      if (!row) return false;
+      // Money was taken either way: record it as paid, and flag it when the bill can't take it.
+      const review: ReviewReason | null =
+        bill!.status !== 'open' ? 'bill_not_open' : bill!.paid_other + payment.share_agorot > bill!.amount_agorot ? 'overpaid' : null;
+      const [row] = await tx.query<{ id: string }>(
+        "UPDATE payments SET status = 'paid', paid_at = now(), provider_txn = $2, review_reason = $3 WHERE id = $1 AND status <> 'paid' RETURNING id",
+        [payment.id, status.transactionRef?.slice(0, 100) ?? null, review],
+      );
+      if (!row) return null;
       // Fully paid → the bill closes itself.
       await tx.query(
         `UPDATE bills SET status = 'paid', closed_at = now() WHERE id = $1 AND status = 'open'
            AND amount_agorot <= (SELECT COALESCE(sum(share_agorot), 0) FROM payments WHERE bill_id = $1 AND status = 'paid')`,
         [payment.bill_id],
       );
-      await audit(tx, { userId: null, action: 'payment.paid', targetType: 'payment', targetId: payment.id, meta: { agorot: expected, provider: provider.id } });
-      return true;
+      await audit(tx, { userId: null, action: 'payment.paid', targetType: 'payment', targetId: payment.id, meta: { agorot: expected, provider: provider.id, review } });
+      return { review };
     });
-    await event(db, payment.id, provider.id, kind, marked ? 'paid' : 'already_paid');
+    await event(db, payment.id, provider.id, kind, !marked ? 'already_paid' : marked.review ? `paid_review_${marked.review}` : 'paid');
     return 'paid';
   }
   if (status.status === 'failed') {
@@ -280,6 +302,41 @@ export async function verifyPayment(db: SqlClient, provider: PaymentProvider, pa
     return 'failed';
   }
   return 'pending';
+}
+
+/**
+ * Releases reservations older than RESERVATION_MINUTES. Each one is first checked with the provider,
+ * so a payment that actually went through is recorded as paid rather than released. A charge that
+ * still arrives later (the provider's page was left open) is recorded and flagged, never lost.
+ * Network calls happen outside any row lock.
+ */
+export async function releaseStaleCheckouts(
+  db: SqlClient,
+  active: { provider: PaymentProvider } | null,
+  billId?: string,
+): Promise<number> {
+  const stale = await db.query<PaymentRow>(
+    `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at FROM payments
+     WHERE status = 'pending' AND created_at < now() - make_interval(mins => ${RESERVATION_MINUTES})
+       ${billId ? 'AND bill_id = $1' : ''} ORDER BY created_at LIMIT 50`,
+    billId ? [billId] : [],
+  );
+  let released = 0;
+  for (const payment of stale) {
+    if (active && active.provider.id === payment.provider) {
+      try {
+        if ((await verifyPayment(db, active.provider, payment, 'release')) !== 'pending') continue;
+      } catch {
+        // Provider unreachable: release anyway; a late confirmation is still recorded and flagged.
+      }
+    }
+    const [row] = await db.query("UPDATE payments SET status = 'expired' WHERE id = $1 AND status = 'pending' RETURNING 1", [payment.id]);
+    if (row) {
+      released++;
+      await event(db, payment.id, payment.provider, 'release', 'expired');
+    }
+  }
+  return released;
 }
 
 /**

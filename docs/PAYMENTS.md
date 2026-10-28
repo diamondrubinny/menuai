@@ -31,7 +31,7 @@ Sees "Paid ₪142.25 + tip ₪17.07"; the bill closes itself when fully paid
 |---|---|
 | A payment counts as paid only after the server confirms it **with the provider**, for the **exact amount** requested. The browser's return and the provider's notification are only hints. | `payments/service.ts` `verifyPayment` |
 | Amounts are integer agorot. The guest only *chooses* (whole / split / amount, tip). The server computes everything against the bill under a row lock. | `payments/money.ts`, `startCheckout` |
-| A checkout reserves its share for 20 minutes, so two guests can't both pay the whole bill. Declined or failed checkouts release it at once. | `RESERVATION_MINUTES` |
+| A checkout reserves its share, so two guests can't both pay the whole bill. Declined checkouts release it at once. A checkout left open for more than 20 minutes is released only after checking with the provider. If money still arrives after the bill was paid, closed or cancelled, it is recorded and **flagged to staff for a refund or review**, never accepted silently. A bill can't be cancelled while a guest is paying it. | `RESERVATION_MINUTES`, `releaseStaleCheckouts`, `review_reason` |
 | A notification must match a per-payment secret (demo) or the provider's process token (Grow). Otherwise it is ignored and logged. | `handleNotification` |
 | A table's QR holds a random 128-bit code, not a table number. A payment page is visible only through its own table's code. Replacing a QR invalidates the old one. | `dining_tables.token`, `/t/:token/done/:id` |
 | Provider credentials are encrypted with AES-256-GCM under `PAYMENTS_KEY` (from the environment, not the database), and the API never returns them. | `payments/crypto.ts` |

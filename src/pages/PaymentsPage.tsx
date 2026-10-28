@@ -242,6 +242,7 @@ function BillsSection() {
                 <span className={`team-badge${b.status === 'open' ? '' : ' is-off'}`}>{t(`payBill_${b.status}` as UiKey)}</span>
               </div>
               {b.note && <p className="hint" dir="auto">{b.note}</p>}
+              {b.payments.some((p) => p.reviewReason) && <p className="notice notice-error" role="alert">⚠️ {t('payNeedsReview')}</p>}
               <dl className="pay-sums">
                 <div><dt>{t('payBillTotal')}</dt><dd>{money(b.amountAgorot)}</dd></div>
                 <div><dt>{t('payPaid')}</dt><dd>{money(b.paidAgorot)}</dd></div>
@@ -253,7 +254,7 @@ function BillsSection() {
                 <span style={{ inlineSize: `${pct}%` }} />
               </div>
               {b.payments.length > 0 && (
-                <details>
+                <details open={b.payments.some((p) => p.reviewReason)}>
                   <summary>{t('payPayments', { n: b.payments.length })}</summary>
                   <ul className="pay-payments">
                     {b.payments.map((p) => (
@@ -263,6 +264,7 @@ function BillsSection() {
                         <span className={`team-badge${p.status === 'paid' ? '' : ' is-off'}`}>{t(`payPayment_${p.status}` as UiKey)}</span>
                         {p.mode === 'test' && <span className="hint">{t('payTestBadge')}</span>}
                         {p.transactionRef && <bdi className="hint" dir="ltr">{p.transactionRef}</bdi>}
+                        {p.reviewReason && <strong className="pay-review">⚠️ {t(`payReview_${p.reviewReason}` as UiKey)}</strong>}
                       </li>
                     ))}
                   </ul>

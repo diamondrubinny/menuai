@@ -40,6 +40,8 @@ export interface BillPayment {
   shareAgorot: number;
   tipAgorot: number;
   status: 'pending' | 'paid' | 'failed' | 'expired';
+  /** Money arrived that the bill could no longer take: staff must refund or review it. */
+  reviewReason: 'bill_not_open' | 'overpaid' | null;
   provider: ProviderId;
   mode: PaymentMode;
   transactionRef: string | null;

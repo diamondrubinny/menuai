@@ -347,6 +347,74 @@ describe('pay at the table', () => {
     expect((await call('POST', `/api/payments/bills/${third}/cancel`, 'editor')).statusCode).toBe(200);
   });
 
+  /** Pretends a checkout started `minutes` ago (its provider page was left open). */
+  const age = (paymentId: string, minutes: number) =>
+    db.query(`UPDATE payments SET created_at = now() - make_interval(mins => $2) WHERE id = $1`, [paymentId, minutes]);
+  /** A real provider charging late: the guest finished on a page we no longer expected. */
+  const chargeLate = (paymentId: string) =>
+    db.query(`UPDATE payments SET provider_ref = provider_ref || '{"outcome":"paid","txn":"LATE-1"}'::jsonb WHERE id = $1`, [paymentId]);
+
+  it('releases an abandoned reservation only after asking the provider, and flags money that still arrives', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    expect((await form(`${t.path}/pay`, { share: 'full' })).statusCode).toBe(409);
+    await age(a.paymentId, 21);
+    // Guest B can now pay: A's reservation was checked (still pending) and released.
+    const b = await checkout(t.path, { share: 'full' });
+    await provider(b.demoPath, 'paid');
+    expect(await bill(billId)).toMatchObject({ status: 'paid', paidAgorot: 10000 });
+    // A's provider session is over: approving it changes nothing.
+    await provider(a.demoPath, 'paid');
+    expect((await bill(billId)).paidAgorot).toBe(10000);
+    // But if a provider charged A anyway, the money is recorded and flagged, never silently accepted.
+    await chargeLate(a.paymentId);
+    expect((await call('GET', `${t.path}/done/${a.paymentId}`, 'guest')).body).toContain('התשלום התקבל');
+    const flagged = (await call('GET', '/api/payments/bills', 'editor')).json().bills.find((x: { id: string }) => x.id === billId);
+    expect(flagged.payments.find((p: { id: string }) => p.id === a.paymentId)).toMatchObject({ status: 'paid', reviewReason: 'bill_not_open' });
+  });
+
+  it('a paid-before-release checkout is recorded as paid, not released', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    await age(a.paymentId, 21);
+    await chargeLate(a.paymentId); // paid, but the notification never arrived
+    expect((await form(`${t.path}/pay`, { share: 'full' })).statusCode).toBe(200); // the bill is now paid: thank-you page
+    expect(await bill(billId)).toMatchObject({ status: 'paid', paidAgorot: 10000 });
+  });
+
+  it('cannot cancel a bill while a guest is paying it; cancelling with an abandoned checkout is safe', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    expect((await call('POST', `/api/payments/bills/${billId}/cancel`, 'editor')).json()).toEqual({ error: 'bill_has_payments' });
+    await age(a.paymentId, 21);
+    expect((await call('POST', `/api/payments/bills/${billId}/cancel`, 'editor')).statusCode).toBe(200);
+    await provider(a.demoPath, 'paid'); // session over: no charge
+    expect((await bill(billId)).paidAgorot).toBe(0);
+    await chargeLate(a.paymentId);
+    await call('GET', `${t.path}/done/${a.paymentId}`, 'guest');
+    const open = (await call('GET', '/api/payments/bills', 'editor')).json().bills;
+    expect(open.find((x: { id: string }) => x.id === billId).payments[0]).toMatchObject({ status: 'paid', reviewReason: 'bill_not_open' });
+  });
+
+  it('answers malformed payment ids with 404 / ignored, never a server error', async () => {
+    await enable();
+    const t = await table();
+    await openBill(t.id, 10000);
+    const bad = '-'.repeat(36);
+    expect((await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: { paymentId: bad, demoSecret: 'x' } })).json()).toMatchObject({ outcome: 'ignored' });
+    expect((await call('GET', `${t.path}/done/${bad}`, 'guest')).statusCode).toBe(404);
+    expect((await call('GET', `/pay/demo/${bad}`, 'guest')).statusCode).toBe(404);
+    const res = await form(`${t.path}/pay`, { share: 'split', parts: 'abc' });
+    expect(res.statusCode).toBe(400);
+    expect(res.body).not.toContain('NaN');
+  });
+
   it('accepts provider notifications without an Origin, but nothing else', async () => {
     await enable();
     expect((await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: {} })).statusCode).toBe(200);

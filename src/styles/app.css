@@ -823,6 +823,7 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 .pay-payments li { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 .pay-actions { justify-content: flex-start; margin-top: 0.75rem; }
 .pay-amount-input { inline-size: 8rem; }
+.pay-review { color: var(--danger, #a1271c); }
 .pay-qr { display: flex; justify-content: center; padding: 0.5rem; background: #fff; border-radius: 8px; margin: 0.5rem 0; }
 .radio-row { display: flex; align-items: center; gap: 0.5rem; min-block-size: 2.25rem; }
 .field-check { display: flex; align-items: center; gap: 0.5rem; }

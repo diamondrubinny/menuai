@@ -10,7 +10,7 @@ import { audit } from '../auth/service';
 import { badRequest, conflict, HttpError, notFound } from '../errors';
 import { availableProviders } from './providers';
 import { PROVIDER_IDS } from './providers/types';
-import { BILL_SELECT, loadSettings, newTableToken, RESERVATION_MINUTES, saveSettings, type BillRow } from './service';
+import { activeProvider, BILL_SELECT, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
 
 const idSchema = z.uuid();
 const amountSchema = z.number().int().min(100).max(10_000_000);
@@ -203,15 +203,21 @@ export async function paymentRoutes(app: FastifyInstance) {
     configured();
     const q = z.object({ view: z.enum(['open', 'recent']).default('open') }).safeParse(req.query);
     if (!q.success) throw badRequest();
-    const where = q.data.view === 'open' ? "b.status = 'open'" : "b.opened_at > now() - interval '2 days'";
+    // Abandoned checkouts stop showing as "being paid" (checked with the provider first).
+    await releaseStaleCheckouts(db, await activeProvider(db, config));
+    // "Open" also lists recent bills with money that needs a refund or review, so staff can't miss them.
+    const where =
+      q.data.view === 'open'
+        ? `(b.status = 'open' OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.paid_at > now() - interval '2 days'))`
+        : "b.opened_at > now() - interval '2 days'";
     const bills = await db.query<BillRow & { table_label: string }>(
       `SELECT x.*, t.label AS table_label FROM (${BILL_SELECT} WHERE ${where} GROUP BY b.id) x
        JOIN dining_tables t ON t.id = x.table_id ORDER BY x.opened_at DESC LIMIT 200`,
     );
     const ids = bills.map((b) => b.id);
     const payments = ids.length
-      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null }>(
-          `SELECT id, bill_id, share_agorot, tip_agorot, status, provider, mode, provider_txn, created_at, paid_at
+      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null }>(
+          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, mode, provider_txn, created_at, paid_at
            FROM payments WHERE bill_id = ANY($1::uuid[]) ORDER BY created_at`,
           [ids],
         )
@@ -222,7 +228,7 @@ export async function paymentRoutes(app: FastifyInstance) {
         payments: payments
           .filter((p) => p.bill_id === b.id)
           .map((p) => ({
-            id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, provider: p.provider,
+            id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, provider: p.provider,
             mode: p.mode, transactionRef: p.provider_txn, createdAt: p.created_at, paidAt: p.paid_at,
           })),
       })),
@@ -253,6 +259,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const id = parseId(req);
     const body = z.object({ amountAgorot: amountSchema.optional(), note: noteSchema.optional() }).strict().safeParse(req.body);
     if (!body.success) throw badRequest();
+    await releaseStaleCheckouts(db, await activeProvider(db, config), id);
     await db.transaction(async (tx) => {
       const [locked] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);
       if (!locked) throw notFound();
@@ -290,15 +297,17 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.post('/api/payments/bills/:id/cancel', { preHandler: editor }, async (req) => {
     configured();
     const id = parseId(req);
-    const [row] = await db.query<{ id: string }>(
-      `UPDATE bills SET status = 'cancelled', closed_at = now() WHERE id = $1 AND status = 'open'
-         AND NOT EXISTS (SELECT 1 FROM payments WHERE bill_id = $1 AND (status = 'paid'
-           OR (status = 'pending' AND created_at > now() - make_interval(mins => ${RESERVATION_MINUTES}))))
-       RETURNING id`,
-      [id],
-    );
-    if (!row) throw conflict('bill_has_payments');
-    await audit(db, { userId: req.user!.id, action: 'bill.cancel', targetType: 'bill', targetId: id });
+    await releaseStaleCheckouts(db, await activeProvider(db, config), id);
+    await db.transaction(async (tx) => {
+      // Lock the bill: a checkout starting right now waits, then sees the bill is no longer open.
+      const [bill] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);
+      if (!bill) throw notFound();
+      if (bill.status !== 'open') throw conflict('bill_not_open');
+      const [busy] = await tx.query("SELECT 1 FROM payments WHERE bill_id = $1 AND status IN ('paid', 'pending') LIMIT 1", [id]);
+      if (busy) throw conflict('bill_has_payments');
+      await tx.query("UPDATE bills SET status = 'cancelled', closed_at = now() WHERE id = $1", [id]);
+      await audit(tx, { userId: req.user!.id, action: 'bill.cancel', targetType: 'bill', targetId: id });
+    });
     return { ok: true };
   });
 }

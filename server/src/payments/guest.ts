@@ -210,7 +210,9 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     const back = `/t/${token}?lang=${locale}`;
 
     let status: string = payment.status;
-    if (status === 'pending') {
+    // Not only "pending": an expired or failed checkout may still have been charged (e.g. the guest
+    // retried on the provider's page). Ask before telling anyone they were not charged.
+    if (status !== 'paid') {
       const active = await activeProvider(db, config);
       if (active && active.provider.id === payment.provider) {
         try {
