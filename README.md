@@ -49,6 +49,7 @@ The editor works on its own. The optional self-hosted server adds:
 | | |
 |---|---|
 | **Team accounts** | Passwordless magic-link sign-in; owner / editor / viewer roles; a **Team** screen (`#/team`) to invite, change roles, disable and re-invite ([`docs/TEAM_UI.md`](docs/TEAM_UI.md)); CLI for the first owner |
+| **Pay at the table** | Guests scan the table's QR (or use the table tablet), pay the whole bill, split it or pay any amount, add a tip, and pay on the payment company's secure page. Card details never reach MenuAI. Waiters see payments arrive live; the bill closes itself when paid. Demo provider today; Grow (Meshulam) next ([`docs/PAYMENTS.md`](docs/PAYMENTS.md)) |
 | **Cloud sync** | **Publish → Cloud** saves the menu in one click; every edit autosaves; open it on any device; optimistic locking means two devices never overwrite each other silently |
 | **Publishing** | **Publish now** renders the menu on the server at a permanent address (`https://menu.example.com/m/<name>`) whose QR code never changes; version history with restore |
 | **Image uploads** | Quarantine → local ClamAV virus scan → re-encoded to WebP with all metadata (GPS) removed; **Move images to the server** converts embedded ones |

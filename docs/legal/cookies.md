@@ -12,6 +12,10 @@ analytics or tracking technology.** The editor uses only what is strictly necess
 
 Exported and published menus keep the chosen language only in the URL (`?lang=`).
 
+**Pay at the table** (`/t/…` pages): no cookies and no storage. The table code and language travel in the URL,
+and the payment form is protected by an Origin check, not by a cookie. On the payment company's own hosted
+page, that company's cookie policy applies (⚖️ list the chosen provider's cookies here before going live).
+
 If analytics or marketing tools are ever added, this policy, a consent banner, and a persistent
 "Privacy & cookie settings" link must be added **before** those tools load. The banner must offer
 "Accept all", "Reject all" and "Manage" (rejection as easy as acceptance), with no pre-ticked boxes,

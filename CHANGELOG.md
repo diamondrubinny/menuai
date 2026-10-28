@@ -2,6 +2,24 @@
 
 All notable changes to MenuAI. Versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor = features).
 
+## [Unreleased]
+
+### Added
+- **Pay at the table, Phase 3a** ([docs/PAYMENTS.md](docs/PAYMENTS.md), plan in [docs/PAYMENTS_PLAN.md](docs/PAYMENTS_PLAN.md)):
+  - **Guests:** they scan a table's QR code or use the table tablet. They pay the whole bill, split it equally, or pay any amount, and can add a tip, then pay on the provider's hosted page. The pages are in Hebrew, English and Arabic, work without JavaScript, and target WCAG 2.1 AA.
+  - **Staff screen** (`#/payments`):
+    - Waiters (editors) open, adjust and close bills, and see payments arrive.
+    - Owners manage tables, with a QR per table, replacing a leaked code, and linking each table to a menu.
+    - Owners set the provider, test/live mode and tip options.
+  - **Security:**
+    - A payment counts only after a server-to-server check with the provider, for the exact amount.
+    - Shares are reserved under a row lock, so two guests can't both pay the whole bill.
+    - Table codes are random, and provider credentials are encrypted with `PAYMENTS_KEY`.
+    - Guest pages use a strict CSP and are never logged.
+  - **Providers:** a built-in demo provider (development only, refused in production). Grow (Meshulam) follows in Phase 3b.
+- `scripts/deploy-server.sh` adds `PAYMENTS_KEY` to `.env` and forwards `/t/` and `/pay/` to the API. The nginx privacy log replaces table codes with `[table]`.
+- `package.json`: author, repository and homepage.
+
 ## [0.2.0] — 2026-10-23
 
 The optional self-hosted server is complete: cloud saving, one-click publishing, scanned image uploads, team management, and production operations.

@@ -127,6 +127,7 @@ export function PrivacyPage() {
           <li><strong>תמונות שמעלים לתפריט בענן</strong> נסרקות לאיתור נוזקות בשרת עצמו (ClamAV, בלי שליחה לצד שלישי), ומקודדות מחדש כך שכל המטא־דאטה (כולל מיקום GPS) נמחקת. התמונה זמינה בכתובת עם מזהה אקראי, כדי שאורחים יוכלו לראות אותה בתפריט המפורסם.</li>
           <li><strong>שמירה ומחיקה:</strong> קישורי כניסה נמחקים אחרי 24 שעות, סשנים כשתוקפם פג, ויומן האבטחה אחרי 12 חודשים. כל זה קורה אוטומטית. גיבויים של השרת מוצפנים, ורק מי שמחזיק במפתח הפרטי יכול לפתוח אותם.</li>
           <li><strong>תפריטים מפורסמים</strong> (כתובת <code>/m/…</code>): האורחים לא מקבלים עוגיות, והשרת לא רושם את הביקורים שלהם ביומן.</li>
+          <li><strong>תשלום מהשולחן</strong> (אם העסק הפעיל אותו): התשלום עצמו מתבצע בעמוד המאובטח של חברת הסליקה, ופרטי הכרטיס לא מגיעים לשרת. השרת שומר את החשבון והתשלומים (סכום, טיפ, סטטוס ומספר אסמכתה) לצורכי הנהלת חשבונות. אם חברת הסליקה דורשת שם וטלפון לקבלה, הם מועברים אליה ולא נשמרים בשרת. עמודי התשלום לא שומרים עוגיות מעקב.</li>
         </ul>
         <p>לבקשות גישה, תיקון או מחיקה של מידע שבשרת — פנו לבעלים של העסק שמפעיל את האתר.</p>
         <h2>תפריטים שאתם מפרסמים</h2>
@@ -163,6 +164,7 @@ export function PrivacyPage() {
         <li><strong>Images uploaded to a cloud menu</strong> are scanned for malware on the server itself (ClamAV, nothing is sent to third parties) and re-encoded, removing all metadata (including GPS location). Each image is available at a random address so guests can see it in the published menu.</li>
         <li><strong>Retention:</strong> sign-in links are deleted after 24 hours, sessions when they expire, and the security log after 12 months. All of this is automatic. Server backups are encrypted, and only the holder of the private key can open them.</li>
         <li><strong>Published menus</strong> (<code>/m/…</code> addresses): guests get no cookies, and the server does not log their visits.</li>
+        <li><strong>Paying at the table</strong> (if the business turned it on): the payment itself happens on the payment company’s secure page, and card details never reach the server. The server keeps the bill and its payments (amount, tip, status and reference number) for accounting. If the payment company needs a name and phone number for the receipt, they are passed to it and not stored on the server. Payment pages set no tracking cookies.</li>
       </ul>
       <p>For access, correction or deletion of data on the server, contact the owner of the business that runs this site.</p>
       <h2>Menus you publish</h2>

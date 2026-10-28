@@ -112,3 +112,44 @@ describe.skipIf(!url)('delete racing a publish (real PostgreSQL, two connections
     }
   });
 });
+
+describe.skipIf(!url)('guests paying at once (real PostgreSQL, concurrent connections)', () => {
+  it('never reserves more than the bill, and a payment is marked paid exactly once', async () => {
+    const { testApp, ORIGIN } = await import('./helpers');
+    const { randomBytes } = await import('node:crypto');
+    const db = createPgClient(url ?? '');
+    await migrate(db);
+    const { app } = await testApp({ db, config: { PAYMENTS_KEY: randomBytes(32).toString('base64'), PAYMENTS_ALLOW_FAKE: 'true' } });
+    try {
+      await db.query(
+        `INSERT INTO payment_settings (id, enabled, provider, mode) VALUES (1, true, 'fake', 'test')
+         ON CONFLICT (id) DO UPDATE SET enabled = true, provider = 'fake', mode = 'test'`,
+      );
+      const token = randomBytes(16).toString('base64url');
+      const [table] = await db.query<{ id: string }>('INSERT INTO dining_tables (label, token) VALUES ($1, $2) RETURNING id', [`race-${Date.now()}`, token]);
+      const [bill] = await db.query<{ id: string }>('INSERT INTO bills (table_id, amount_agorot) VALUES ($1, 10000) RETURNING id', [table!.id]);
+      const pay = () =>
+        app.inject({
+          method: 'POST', url: `/t/${token}/pay`, payload: 'share=full',
+          headers: { origin: ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+        });
+      const results = await Promise.all(Array.from({ length: 10 }, pay));
+      expect(results.filter((r) => r.statusCode === 303)).toHaveLength(1);
+      expect(results.filter((r) => r.statusCode === 409)).toHaveLength(9);
+
+      // The provider confirms twice at once (notification + guest returning): one "paid", one audit entry.
+      const demo = new URL(results.find((r) => r.statusCode === 303)!.headers.location as string).pathname;
+      const paymentId = demo.split('/').pop()!;
+      const approve = () =>
+        app.inject({ method: 'POST', url: demo, payload: 'outcome=paid', headers: { origin: ORIGIN, 'content-type': 'application/x-www-form-urlencoded' } });
+      await Promise.all([approve(), approve(), app.inject({ method: 'GET', url: `/t/${token}/done/${paymentId}` })]);
+      const [paid] = await db.query<{ status: string }>('SELECT status FROM bills WHERE id = $1', [bill!.id]);
+      expect(paid!.status).toBe('paid');
+      const audits = await db.query("SELECT 1 FROM audit_log WHERE action = 'payment.paid' AND target_id = $1", [paymentId]);
+      expect(audits).toHaveLength(1);
+    } finally {
+      await app.close();
+      await db.close();
+    }
+  });
+});

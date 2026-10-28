@@ -51,14 +51,14 @@ describe('retention policy', () => {
     );
 
     const report = await applyRetention(db, media());
-    expect(report).toEqual({ loginTokens: 1, sessions: 1, auditLog: 1, rejectedUploads: 1, stuckUploads: 0, orphanImages: 0 });
+    expect(report).toEqual({ loginTokens: 1, sessions: 1, auditLog: 1, rejectedUploads: 1, stuckUploads: 0, orphanImages: 0, abandonedPayments: 0, paymentEvents: 0 });
     expect((await db.query<{ token_hash: string }>('SELECT token_hash FROM login_tokens')).map((r) => r.token_hash)).toEqual(['fresh']);
     expect((await db.query<{ token_hash: string }>('SELECT token_hash FROM sessions')).map((r) => r.token_hash)).toEqual(['live']);
     expect((await db.query<{ action: string }>('SELECT action FROM audit_log')).map((r) => r.action)).toEqual(['recent']);
     expect(await n("SELECT count(*) AS n FROM uploads WHERE storage_key = 'r-new'")).toBe(1);
 
     // Idempotent: a second run deletes nothing more.
-    expect(await applyRetention(db, media())).toEqual({ loginTokens: 0, sessions: 0, auditLog: 0, rejectedUploads: 0, stuckUploads: 0, orphanImages: 0 });
+    expect(await applyRetention(db, media())).toEqual({ loginTokens: 0, sessions: 0, auditLog: 0, rejectedUploads: 0, stuckUploads: 0, orphanImages: 0, abandonedPayments: 0, paymentEvents: 0 });
   });
 });
 

@@ -32,8 +32,8 @@ die() { echo "deploy: $*" >&2; exit 1; }
 step() { echo "==> $*"; }
 
 # --- nginx configuration ------------------------------------------------------------------------
-# Security headers apply to the static editor only. Published menus (/m/), images (/media/) and the
-# API set their own, stricter headers: a second CSP from nginx would be enforced too and break them.
+# Security headers apply to the static editor only. Published menus (/m/), images (/media/), table
+# pages (/t/, /pay/) and the API set their own, stricter headers: a second CSP from nginx would be enforced too and break them.
 render_nginx() {
   local out="$1" tls="$2"
   mkdir -p "$out/conf.d" "$out/snippets" "$out/sites-available"
@@ -45,7 +45,12 @@ map $remote_addr $menuai_ip {
     ~^(?P<b>[0-9a-fA-F]*:[0-9a-fA-F]*:[0-9a-fA-F]*):  $b::;
     default                                 -;
 }
-log_format menuai_privacy '$menuai_ip [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent';
+# Table pages (/t/<token>/…) carry the table's key in the path: it never reaches the log.
+map $uri $menuai_uri {
+    ~^/t/[^/]+(?P<rest>/.*)?$              /t/[table]$rest;
+    default                                 $uri;
+}
+log_format menuai_privacy '$menuai_ip [$time_local] "$request_method $menuai_uri $server_protocol" $status $body_bytes_sent';
 NGINX
 
   {
@@ -90,6 +95,13 @@ server {
         include snippets/menuai-proxy.conf;
     }
     location /media/ {
+        include snippets/menuai-proxy.conf;
+    }
+    # Pay at the table: guest pages and the demo provider (docs/PAYMENTS.md).
+    location /t/ {
+        include snippets/menuai-proxy.conf;
+    }
+    location /pay/ {
         include snippets/menuai-proxy.conf;
     }
     location /assets/ {
@@ -174,6 +186,13 @@ LOG_LEVEL=info
 UPLOAD_QUOTA_MB=2048
 ENV
   umask 022
+fi
+# Pay at the table: the key that encrypts payment provider credentials (docs/PAYMENTS.md). Added on
+# updates too. Keep a copy in your password manager: backups do not include .env.
+if ! grep -q '^PAYMENTS_KEY=.' .env; then
+  step "Adding PAYMENTS_KEY to .env (encrypts payment provider credentials; keep a copy safe)"
+  sed -i '/^PAYMENTS_KEY=/d' .env
+  echo "PAYMENTS_KEY=$(openssl rand -base64 32)" >> .env
 fi
 chmod 600 .env
 

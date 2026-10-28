@@ -18,6 +18,8 @@ import { menuRoutes } from './menus/routes';
 import { publishRoutes, sendMenuNotFound } from './publish/routes';
 import { createFileStore, type PublishStore } from './publish/store';
 import { uploadRoutes } from './uploads/routes';
+import { paymentRoutes } from './payments/routes';
+import { guestPaymentRoutes, NOTIFY_ROUTE } from './payments/guest';
 import { applyRetention } from './maintenance/retention';
 import { createMediaStore, type MediaStore } from './uploads/store';
 import { clamdScanner, unscanned, type Scanner } from './uploads/clamd';
@@ -42,10 +44,14 @@ declare module 'fastify' {
   }
 }
 
-/** Strips the query string so one-time tokens (e.g. ?token=) never reach the logs. */
-function safeUrl(url: string): string {
+/**
+ * Strips the query string so one-time tokens (e.g. ?token=) never reach the logs, and the table code
+ * from pay-at-the-table paths (/t/<code>/…: it is the table's key).
+ */
+export function safeUrl(url: string): string {
   const i = url.indexOf('?');
-  return i === -1 ? url : `${url.slice(0, i)}?[redacted]`;
+  const path = (i === -1 ? url : url.slice(0, i)).replace(/^\/t\/[^/]+/, '/t/[table]');
+  return i === -1 ? path : `${path}?[redacted]`;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -110,6 +116,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const allowedOrigin = new URL(config.PUBLIC_URL).origin;
   app.addHook('onRequest', async (req) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+    // Payment providers call this server-to-server (no browser, no Origin). It changes nothing on its
+    // own say-so: every notification is checked with the provider first (payments/service.ts).
+    // Matched by route (not by URL prefix), so no path trick can carry the exemption to another endpoint.
+    if (req.routeOptions.url === NOTIFY_ROUTE) return;
     if (req.headers.origin !== allowedOrigin) throw forbidden();
   });
 
@@ -127,6 +137,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     : null;
   if (!scanner) app.log.warn('CLAMAV_URL is not set: image uploads are disabled (every upload must be virus scanned).');
   await app.register(uploadRoutes, { media, scanner });
+  await app.register(paymentRoutes);
+  await app.register(guestPaymentRoutes);
 
   // Daily retention run: expired tokens and sessions, old audit entries, unused images.
   if (config.NODE_ENV !== 'test') {
