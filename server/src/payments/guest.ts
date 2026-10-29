@@ -12,7 +12,7 @@ import { decimalToAgorot, remainingAgorot, shareChoiceSchema, tipChoiceSchema, t
 import { demoProviderPage, guestCsp, pickLocale, resultPage, tableNotFoundPage, tablePage, type GuestErrorCode, type GuestLocale } from './pages';
 import { PROVIDER_IDS, ProviderError, type Payer, type ProviderRef } from './providers/types';
 import {
-  activeProvider, handleNotification, loadPayment, openBillForTable, startCheckout, tableByToken, totalsOf, verifyPayment,
+  activeProvider, configuredProvider, handleNotification, loadPayment, openBillForTable, startCheckout, tableByToken, totalsOf, verifyPayment,
   type GuestTable,
 } from './service';
 
@@ -232,7 +232,7 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     // Not only "pending": an expired or failed checkout may still have been charged (e.g. the guest
     // retried on the provider's page). Ask before telling anyone they were not charged.
     if (status !== 'paid') {
-      const active = await activeProvider(db, config, app.deps.paymentHttp);
+      const active = await configuredProvider(db, config, app.deps.paymentHttp);
       if (active && active.provider.id === payment.provider) {
         try {
           status = await verifyPayment(db, active.provider, payment, 'return');
@@ -252,7 +252,8 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
   app.post(NOTIFY_ROUTE, { config: { rateLimit: { max: 300, timeWindow: '1 minute' } }, logLevel: 'warn' }, async (req, reply) => {
     const providerId = (req.params as { provider: string }).provider;
     if (!(PROVIDER_IDS as readonly string[]).includes(providerId)) return reply.status(404).send({ error: 'not_found' });
-    const active = await activeProvider(db, config, app.deps.paymentHttp);
+    // Even with payments switched off: a guest who already paid must still be recorded.
+    const active = await configuredProvider(db, config, app.deps.paymentHttp);
     // Always 200 for well-formed requests we chose to ignore, so providers don't retry forever.
     if (!active || active.provider.id !== providerId) return reply.send({ ok: true });
     try {

@@ -524,6 +524,37 @@ describe('pay at the table', () => {
     expect(script).toContain('initTablePay(document)');
   });
 
+  it('still records a payment that completes after payments were switched off', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const { paymentId } = await checkout(t.path, { share: 'full' });
+    expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: false, provider: 'fake', mode: 'test', tipPercents: [10] })).statusCode).toBe(200);
+    // The guest finishes on the provider's page; its notification still counts.
+    const [row] = await db.query<{ provider_ref: Record<string, string> }>('SELECT provider_ref FROM payments WHERE id = $1', [paymentId]);
+    await db.query(`UPDATE payments SET provider_ref = provider_ref || '{"outcome":"paid","txn":"T-1"}'::jsonb WHERE id = $1`, [paymentId]);
+    const res = await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: { paymentId, demoSecret: row!.provider_ref.demoSecret } });
+    expect(res.json()).toMatchObject({ outcome: 'paid' });
+    expect(await bill(billId)).toMatchObject({ status: 'paid', paidAgorot: 10000 });
+  });
+
+  it('refuses to switch provider, mode or credentials while a guest is paying', async () => {
+    await enable();
+    const t = await table();
+    await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    const put = (body: Record<string, unknown>) => call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'test', tipPercents: [10], ...body });
+    expect((await put({ credentials: {} })).json()).toEqual({ error: 'payments_in_progress' });
+    // Tips, terms and on/off can change any time.
+    expect((await put({ tipPercents: [5, 10], termsUrl: 'https://example.com/terms' })).statusCode).toBe(200);
+    await provider(a.demoPath, 'declined');
+    expect((await put({ credentials: {} })).statusCode).toBe(200);
+    // Terms links must really start with https:// (no 500 from the database check).
+    for (const bad of ['HTTPS://example.com', 'https:example.com', 'https:/example.com']) {
+      expect((await put({ termsUrl: bad })).statusCode).toBe(400);
+    }
+  });
+
   it('accepts provider notifications without an Origin, but nothing else', async () => {
     await enable();
     expect((await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: {} })).statusCode).toBe(200);

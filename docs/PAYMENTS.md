@@ -81,6 +81,12 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
 | Card / Bit details | Payment | — | **Never reach MenuAI** | — | Provider only |
 
+## Changing settings safely
+
+- **Turning payments off** stops new checkouts. Guests who are already on the payment page are still recorded when they finish, because their notification is verified with the configured provider.
+- **Changing the provider, the mode (test/live) or the account details** is refused (`payments_in_progress`) while any guest is in the middle of paying. A checkout is verified with what it started with, so switching underneath it could leave a real charge unconfirmed. Wait a moment, or let abandoned checkouts be released (20 minutes, checked with the provider), then change.
+- **Tips, terms link and on/off** can change at any time.
+
 ## The table tablet: menu ↔ payment
 
 The table's QR code, or the address opened on the table tablet, leads to `/t/<code>`. From there, **📖 View menu** opens the published menu in the guest's language, as `/m/<menu>?lang=…#table=<code>`.

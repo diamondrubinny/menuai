@@ -105,9 +105,23 @@ export async function activeProvider(
   config: Config,
   http?: Http,
 ): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
+  const configured = await configuredProvider(db, config, http);
+  return configured?.settings.enabled ? configured : null;
+}
+
+/**
+ * The provider payments were made through, even while guests can't start new ones (payments switched
+ * off). Notifications, return pages and stale-checkout checks use this, so money that is already on
+ * its way is still recorded. (Changing the provider, mode or credentials is refused while a checkout
+ * is in progress: see the settings route.)
+ */
+export async function configuredProvider(
+  db: SqlClient,
+  config: Config,
+  http?: Http,
+): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
   if (!config.PAYMENTS_KEY) return null;
   const settings = await loadSettings(db, config);
-  if (!settings.enabled) return null;
   const provider = createProvider(config, settings, http);
   return provider ? { provider, settings } : null;
 }

@@ -17,6 +17,7 @@ import { userRoutes } from './users/routes';
 import { menuRoutes } from './menus/routes';
 import { publishRoutes, sendMenuNotFound } from './publish/routes';
 import { createFileStore, type PublishStore } from './publish/store';
+import { refreshPublishedPages } from './publish/refresh';
 import { uploadRoutes } from './uploads/routes';
 import { paymentRoutes } from './payments/routes';
 import { paymentReportRoutes } from './payments/report';
@@ -143,6 +144,19 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(paymentRoutes);
   await app.register(paymentReportRoutes);
   await app.register(guestPaymentRoutes);
+
+  // After an update, pages published by an older version are re-rendered before the first request
+  // (their old inline script would not match the current CSP hash).
+  if (config.NODE_ENV !== 'test') {
+    app.addHook('onReady', async () => {
+      try {
+        const report = await refreshPublishedPages(deps.db, store);
+        if (report.refreshed || report.failed) app.log.info({ published: report }, 'published pages refreshed');
+      } catch (err) {
+        app.log.error({ err }, 'refreshing published pages failed');
+      }
+    });
+  }
 
   // Daily retention run: expired tokens and sessions, old audit entries, unused images.
   if (config.NODE_ENV !== 'test') {

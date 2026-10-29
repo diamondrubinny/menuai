@@ -10,7 +10,7 @@ import { audit } from '../auth/service';
 import { badRequest, conflict, HttpError, notFound } from '../errors';
 import { availableProviders, modeAllowed } from './providers';
 import { PROVIDER_IDS } from './providers/types';
-import { activeProvider, BILL_SELECT, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
+import { activeProvider, BILL_SELECT, configuredProvider, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
 
 const idSchema = z.uuid();
 const amountSchema = z.number().int().min(100).max(10_000_000);
@@ -96,7 +96,7 @@ export async function paymentRoutes(app: FastifyInstance) {
         provider: z.enum(PROVIDER_IDS),
         mode: z.enum(['test', 'live']),
         tipPercents: z.array(z.number().int().min(1).max(50)).max(5),
-        termsUrl: z.url({ protocol: /^https$/ }).max(500).nullable().default(null),
+        termsUrl: z.url({ protocol: /^https$/ }).regex(/^https:\/\/[^/]/).max(500).nullable().default(null),
         credentials: z.record(z.string().regex(/^[A-Za-z]{1,40}$/), z.string().trim().min(1).max(200)).nullable().optional(),
       })
       .strict()
@@ -114,6 +114,14 @@ export async function paymentRoutes(app: FastifyInstance) {
     const current = await loadSettings(db, config);
     const willHave = next.credentials === undefined ? current.credentials !== null && current.provider === next.provider : next.credentials !== null;
     if (next.enabled && CREDENTIAL_FIELDS[next.provider].length > 0 && !willHave) throw badRequest('credentials_required');
+    // A checkout in progress is verified with the provider, mode and account it started with: don't
+    // switch those under it (a charge could otherwise never be confirmed and be lost).
+    const switching = current.provider !== next.provider || current.mode !== next.mode || next.credentials !== undefined;
+    if (switching) {
+      await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp));
+      const [busy] = await db.query("SELECT 1 FROM payments WHERE status = 'pending' LIMIT 1");
+      if (busy) throw conflict('payments_in_progress');
+    }
     const tipPercents = [...new Set(next.tipPercents)].sort((a, b) => a - b);
     await saveSettings(db, config, req.user!.id, {
       ...next,
@@ -208,7 +216,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const q = z.object({ view: z.enum(['open', 'recent']).default('open') }).safeParse(req.query);
     if (!q.success) throw badRequest();
     // Abandoned checkouts stop showing as "being paid" (checked with the provider first).
-    await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp));
+    await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp));
     // "Open" also lists bills with money that still needs a refund or review, so staff can't miss them.
     const where =
       q.data.view === 'open'
@@ -263,7 +271,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const id = parseId(req);
     const body = z.object({ amountAgorot: amountSchema.optional(), note: noteSchema.optional() }).strict().safeParse(req.body);
     if (!body.success) throw badRequest();
-    await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp), id);
+    await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp), id);
     await db.transaction(async (tx) => {
       const [locked] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);
       if (!locked) throw notFound();
@@ -301,7 +309,7 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.post('/api/payments/bills/:id/cancel', { preHandler: editor }, async (req) => {
     configured();
     const id = parseId(req);
-    await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp), id);
+    await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp), id);
     await db.transaction(async (tx) => {
       // Lock the bill: a checkout starting right now waits, then sees the bill is no longer open.
       const [bill] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);

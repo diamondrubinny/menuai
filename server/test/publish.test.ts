@@ -14,6 +14,8 @@ import type { Config } from '../src/config';
 import { createSampleMenu } from '../../src/core/sample';
 import { MAX_VERSIONS, publicUrl } from '../src/publish/routes';
 import { createFileStore } from '../src/publish/store';
+import { refreshPublishedPages } from '../src/publish/refresh';
+import { writeFileSync } from 'node:fs';
 import { fontPath } from '../src/publish/render';
 import { FONT_FILES } from '../../src/core/fontFiles.generated';
 import type { Menu } from '../../src/core/schema';
@@ -151,6 +153,20 @@ describe('publishing', () => {
     expect(await db.query('SELECT 1 FROM menu_versions')).toHaveLength(0);
     expect(await db.query('SELECT 1 FROM publications')).toHaveLength(0);
     expect(await db.query("SELECT 1 FROM audit_log WHERE action = 'menu.publish'")).toHaveLength(0);
+  });
+
+  it('re-renders pages published by an older version, so their script matches the current CSP', async () => {
+    const menu = await createMenu();
+    expect((await publish(menu.id, menu.draftVersion)).statusCode).toBe(200);
+    const store = createFileStore(config.PUBLISH_DIR);
+    const file = path.join(config.PUBLISH_DIR, `${menu.slug}.html`);
+    const current = readFileSync(file, 'utf8');
+    // A page from an older release: same content, a different (older) inline runtime script.
+    writeFileSync(file, current.replace(/<script>[\s\S]*<\/script>/, '<script>(function(){/* old runtime */})();</script>'));
+    expect(await refreshPublishedPages(db, store)).toEqual({ refreshed: 1, failed: 0 });
+    expect(readFileSync(file, 'utf8')).toBe(current);
+    // Already current: left alone.
+    expect(await refreshPublishedPages(db, store)).toEqual({ refreshed: 0, failed: 0 });
   });
 
   it('lists the menu as live in the menu list', async () => {

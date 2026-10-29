@@ -10,6 +10,7 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
   - **Server updates:** accepted as form fields. They must carry the stored process token, and are confirmed with `getPaymentProcessInfo` (statusCode 2, exact amount) before the payment counts. `approveTransaction` then follows.
   - **Privacy:** the payer's name and phone go to Grow only and are never stored.
   - **Live mode stays locked** until the sandbox run has passed (`PAYMENTS_GROW_LIVE`).
+- **After an update, published menus are re-rendered automatically** when the server starts, from their live version. This only applies to menus whose page still carries an older runtime script, which the current CSP would block. Without it, language switching and the menu's interactions would stop on menus published before the update.
 - **Table tablet:**
   - The table page opens the menu in the guest's language. The menu then shows a fixed **💳 Pay the bill** button back to the table page, which works in kiosk mode without a Back button.
   - The table code travels in the URL fragment, which never reaches a server or a log. It is kept for that browser tab only and removed from the visible address.
@@ -32,6 +33,12 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
   - **Providers:** a built-in demo provider (development only, refused in production). Grow (Meshulam) follows in Phase 3b.
 - `scripts/deploy-server.sh` adds `PAYMENTS_KEY` to `.env` and forwards `/t/` and `/pay/` to the API. The nginx privacy log replaces table codes with `[table]`.
 - `package.json`: author, repository and homepage.
+
+### Fixed (review of the Grow, report and tablet changes)
+- **Payments in progress are no longer lost when settings change.**
+  - A payment that completes after payments were switched off is still verified and recorded.
+  - Changing the provider, mode or account details is refused while a guest is paying.
+- **Terms links** like `HTTPS://…` or `https:example.com` get a clear 400 instead of a server error.
 
 ## [0.2.0] — 2026-10-23
 
