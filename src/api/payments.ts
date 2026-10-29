@@ -43,6 +43,8 @@ export interface BillPayment {
   status: 'pending' | 'paid' | 'failed' | 'expired';
   /** Money arrived that the bill could no longer take: staff must refund or review it. */
   reviewReason: 'bill_not_open' | 'overpaid' | null;
+  reviewResolvedAt: string | null;
+  reviewNote: string | null;
   provider: ProviderId;
   mode: PaymentMode;
   transactionRef: string | null;
@@ -82,6 +84,22 @@ export const openBill = (body: { tableId: string; amountAgorot: number; note: st
 export const updateBill = (id: string, body: { amountAgorot?: number; note?: string }) => api<{ ok: true }>(`/payments/bills/${id}`, { method: 'PATCH', body });
 export const closeBill = (id: string) => api<{ ok: true }>(`/payments/bills/${id}/close`, { method: 'POST' });
 export const cancelBill = (id: string) => api<{ ok: true }>(`/payments/bills/${id}/cancel`, { method: 'POST' });
+
+export interface ReportDay {
+  date: string;
+  mode: PaymentMode;
+  bills: number;
+  payments: number;
+  collectedAgorot: number;
+  tipsAgorot: number;
+  openReviews: number;
+}
+export const getReport = (from: string, to: string) =>
+  api<{ timezone: string; from: string; to: string; days: ReportDay[] }>(`/payments/report?from=${from}&to=${to}`);
+/** Same-origin link (the session cookie goes along); the server answers with a CSV attachment. */
+export const reportCsvUrl = (from: string, to: string) => `/api/payments/report.csv?from=${from}&to=${to}`;
+export const resolveReview = (paymentId: string, note: string) =>
+  api<{ ok: true }>(`/payments/payments/${paymentId}/resolve`, { method: 'POST', body: { note } });
 
 /** "123.4" / "123,40" → 12340 agorot, or null when it is not a valid amount. */
 export function shekelsToAgorot(input: string): number | null {

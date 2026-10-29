@@ -40,6 +40,18 @@ const configSchema = z
     PAYMENTS_ALLOW_FAKE: bool.default(false),
     /** Allows Grow's live mode. Set only after the full flow passed in Grow's sandbox (docs/PAYMENTS.md). */
     PAYMENTS_GROW_LIVE: bool.default(false),
+    /** The business's time zone: payment reports are grouped by its calendar days. */
+    BUSINESS_TIMEZONE: z
+      .string()
+      .refine((tz) => {
+        try {
+          new Intl.DateTimeFormat('en', { timeZone: tz });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'must be an IANA time zone such as Asia/Jerusalem')
+      .default('Asia/Jerusalem'),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV === 'production' && !c.PUBLIC_URL.startsWith('https://')) {

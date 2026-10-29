@@ -94,7 +94,7 @@ A `fake` provider is used in tests and the demo (no real money).
 | 3a ✅ | Adapter interface + `fake` provider, tables/bills/payments schema, staff screen, `/pay` page with tip/split, webhook pipeline, tests |
 | 3b ✅ (code; sandbox run pending) | First real Israeli provider (sandbox) end to end |
 | 3c | Second provider + Stripe/PayPal (if supported) |
-| 3d | Receipts/invoices integration, refunds, daily report, production checklist update |
+| 3d (in progress) | **Now:** resolving flagged payments (owner marks a late/over-payment as refunded or reviewed, with a note; audited); daily report by business day (Israel time) and CSV export for accounting and tip sharing (owner). **Later, with provider docs/credentials:** refunds through the provider API (until then: refund in the provider's dashboard, then mark it resolved here); receipts/tax invoices via the provider's invoice module or an accounting system (⚖️ accountant). |
 | 3e (optional) | Order-and-pay cart (flow B) |
 
 ## 7. Out of scope (MVP)

@@ -7,14 +7,14 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { QRCodeSVG } from 'qrcode.react';
 import { api, isNoServer, type ApiUser } from '../api/client';
 import {
-  cancelBill, closeBill, createTable, formatAgorot, getSettings, listBills, listTables, openBill, paymentsStatus, rotateTable, saveSettings,
-  shekelsToAgorot, updateBill, updateTable, type Bill, type DiningTable, type PaymentMode, type PaymentSettingsDto, type PaymentsStatus, type ProviderId,
+  cancelBill, closeBill, createTable, formatAgorot, getReport, getSettings, listBills, listTables, openBill, paymentsStatus, reportCsvUrl, resolveReview, rotateTable, saveSettings,
+  shekelsToAgorot, updateBill, updateTable, type Bill, type DiningTable, type ReportDay, type PaymentMode, type PaymentSettingsDto, type PaymentsStatus, type ProviderId,
 } from '../api/payments';
 import { useFeedback } from '../store/feedbackStore';
 import { useT, type UiKey } from '../i18n/ui';
 
 type Gate = { kind: 'loading' } | { kind: 'noServer' } | { kind: 'signedOut' } | { kind: 'staffOnly' } | { kind: 'ready'; me: ApiUser; status: PaymentsStatus };
-type Section = 'bills' | 'tables' | 'settings';
+type Section = 'bills' | 'tables' | 'report' | 'settings';
 
 /** Staff screens refresh bills on their own, so a waiter sees guests' payments come in. */
 const REFRESH_MS = 10_000;
@@ -29,6 +29,8 @@ const ERRORS: Record<string, UiKey> = {
   invalid_credentials: 'payErrCredentials',
   provider_unavailable: 'payErrProvider',
   payments_not_configured: 'payNotConfigured',
+  nothing_to_resolve: 'payErrNothingToResolve',
+  invalid_range: 'payErrRange',
   live_not_enabled: 'payGrowLiveLocked',
 };
 const errorKey = (error: string, status: number): UiKey => ERRORS[error] ?? (status === 400 ? 'payErrInvalid' : status === 429 ? 'loginTooMany' : 'payErrFailed');
@@ -63,7 +65,7 @@ export function PaymentsPage() {
   const sections: { id: Section; label: UiKey }[] = [
     { id: 'bills', label: 'payTabBills' },
     { id: 'tables', label: 'payTabTables' },
-    ...(isOwner ? [{ id: 'settings' as const, label: 'payTabSettings' as const }] : []),
+    ...(isOwner ? [{ id: 'report' as const, label: 'payTabReport' as const }, { id: 'settings' as const, label: 'payTabSettings' as const }] : []),
   ];
 
   return (
@@ -100,7 +102,8 @@ export function PaymentsPage() {
                 ))}
               </nav>
               <h2 ref={sectionHeading} tabIndex={-1}>{t(sections.find((s) => s.id === section)?.label ?? 'payTabBills')}</h2>
-              {section === 'bills' && <BillsSection />}
+              {section === 'bills' && <BillsSection isOwner={isOwner} />}
+              {section === 'report' && isOwner && <ReportSection />}
               {section === 'tables' && <TablesSection isOwner={isOwner} />}
               {section === 'settings' && isOwner && <SettingsSection onSaved={() => void refreshStatus()} />}
             </>
@@ -113,7 +116,7 @@ export function PaymentsPage() {
 
 // --- bills ------------------------------------------------------------------------------------------
 
-function BillsSection() {
+function BillsSection({ isOwner }: { isOwner: boolean }) {
   const { t, lang } = useT();
   const id = useId();
   const notify = useFeedback((s) => s.notify);
@@ -126,6 +129,7 @@ function BillsSection() {
   const [formError, setFormError] = useState<UiKey | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; amount: string } | null>(null);
+  const [resolving, setResolving] = useState<{ id: string; note: string } | null>(null);
   const money = (a: number) => formatAgorot(a, lang);
 
   const load = useCallback(async () => {
@@ -170,6 +174,17 @@ function BillsSection() {
     setBusy(null);
     if (!r.ok) return notify(t(errorKey(r.error, r.status)), 'error');
     notify(t(action === 'close' ? 'payBillClosed' : 'payBillCancelled'), 'success');
+    void load();
+  };
+
+  const resolve = async (paymentId: string) => {
+    if (!resolving?.note.trim()) return;
+    setBusy(paymentId);
+    const r = await resolveReview(paymentId, resolving.note.trim());
+    setBusy(null);
+    if (!r.ok) return notify(t(errorKey(r.error, r.status)), 'error');
+    setResolving(null);
+    notify(t('payReviewResolvedDone'), 'success');
     void load();
   };
 
@@ -243,7 +258,7 @@ function BillsSection() {
                 <span className={`team-badge${b.status === 'open' ? '' : ' is-off'}`}>{t(`payBill_${b.status}` as UiKey)}</span>
               </div>
               {b.note && <p className="hint" dir="auto">{b.note}</p>}
-              {b.payments.some((p) => p.reviewReason) && <p className="notice notice-error" role="alert">⚠️ {t('payNeedsReview')}</p>}
+              {b.payments.some((p) => p.reviewReason && !p.reviewResolvedAt) && <p className="notice notice-error" role="alert">⚠️ {t('payNeedsReview')}</p>}
               <dl className="pay-sums">
                 <div><dt>{t('payBillTotal')}</dt><dd>{money(b.amountAgorot)}</dd></div>
                 <div><dt>{t('payPaid')}</dt><dd>{money(b.paidAgorot)}</dd></div>
@@ -255,7 +270,7 @@ function BillsSection() {
                 <span style={{ inlineSize: `${pct}%` }} />
               </div>
               {b.payments.length > 0 && (
-                <details open={b.payments.some((p) => p.reviewReason)}>
+                <details open={b.payments.some((p) => p.reviewReason && !p.reviewResolvedAt)}>
                   <summary>{t('payPayments', { n: b.payments.length })}</summary>
                   <ul className="pay-payments">
                     {b.payments.map((p) => (
@@ -265,7 +280,21 @@ function BillsSection() {
                         <span className={`team-badge${p.status === 'paid' ? '' : ' is-off'}`}>{t(`payPayment_${p.status}` as UiKey)}</span>
                         {p.mode === 'test' && <span className="hint">{t('payTestBadge')}</span>}
                         {p.transactionRef && <bdi className="hint" dir="ltr">{p.transactionRef}</bdi>}
-                        {p.reviewReason && <strong className="pay-review">⚠️ {t(`payReview_${p.reviewReason}` as UiKey)}</strong>}
+                        {p.reviewReason && !p.reviewResolvedAt && <strong className="pay-review">⚠️ {t(`payReview_${p.reviewReason}` as UiKey)}</strong>}
+                        {p.reviewResolvedAt && <span className="hint">✓ {t('payReviewResolved')}{p.reviewNote ? `: ${p.reviewNote}` : ''}</span>}
+                        {isOwner && p.reviewReason && !p.reviewResolvedAt && (resolving?.id === p.id ? (
+                          <span className="pay-resolve">
+                            <label className="visually-hidden" htmlFor={`${id}-r-${p.id}`}>{t('payResolveNote')}</label>
+                            <input
+                              id={`${id}-r-${p.id}`} type="text" maxLength={200} placeholder={t('payResolveNote')} value={resolving.note} autoFocus
+                              onChange={(e) => setResolving({ id: p.id, note: e.target.value })}
+                            />
+                            <button type="button" className="btn btn-sm btn-primary" disabled={!resolving.note.trim() || busy === p.id} onClick={() => void resolve(p.id)}>{t('paySave')}</button>
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setResolving(null)}>{t('close')}</button>
+                          </span>
+                        ) : (
+                          <button type="button" className="btn btn-sm" onClick={() => setResolving({ id: p.id, note: '' })}>{t('payResolve')}</button>
+                        ))}
                       </li>
                     ))}
                   </ul>
@@ -448,6 +477,108 @@ function TablesSection({ isOwner }: { isOwner: boolean }) {
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+// --- report (owner) --------------------------------------------------------------------------------
+
+/** YYYY-MM-DD for a date in the browser's calendar. */
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function ReportSection() {
+  const { t, lang } = useT();
+  const id = useId();
+  const [range, setRange] = useState(() => ({ from: isoDay(new Date(Date.now() - 6 * 86_400_000)), to: isoDay(new Date()) }));
+  const [data, setData] = useState<{ timezone: string; days: ReportDay[] } | null>(null);
+  const [error, setError] = useState<UiKey | null>(null);
+  const [loading, setLoading] = useState(false);
+  const money = (a: number) => formatAgorot(a, lang);
+
+  const load = useCallback(async (from: string, to: string) => {
+    setLoading(true);
+    setError(null);
+    const r = await getReport(from, to);
+    setLoading(false);
+    if (!r.ok) return setError(errorKey(r.error, r.status));
+    setData(r.data);
+  }, []);
+
+  // Load the default range once; later loads are explicit ("Show").
+  const initial = useRef(range);
+  useEffect(() => void load(initial.current.from, initial.current.to), [load]);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void load(range.from, range.to);
+  };
+
+  const live = data?.days.filter((d) => d.mode === 'live') ?? [];
+  const test = data?.days.filter((d) => d.mode === 'test') ?? [];
+  const sum = (rows: ReportDay[], k: 'collectedAgorot' | 'tipsAgorot' | 'payments' | 'bills') => rows.reduce((a, r) => a + r[k], 0);
+  const dayLabel = (iso: string) => new Intl.DateTimeFormat(lang, { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
+
+  const table = (rows: ReportDay[], caption: UiKey) => (
+    <div className="team-table-wrap">
+      <table className="team-table pay-report">
+        <caption>{t(caption)}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('payReportDay')}</th>
+            <th scope="col">{t('payReportBills')}</th>
+            <th scope="col">{t('payReportPayments')}</th>
+            <th scope="col">{t('payReportCollected')}</th>
+            <th scope="col">{t('payTipsTotal')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((d) => (
+            <tr key={d.date}>
+              <th scope="row">{dayLabel(d.date)}{d.openReviews > 0 && <span className="pay-review"> ⚠️ {t('payReportOpenReviews', { n: d.openReviews })}</span>}</th>
+              <td>{d.bills}</td>
+              <td>{d.payments}</td>
+              <td>{money(d.collectedAgorot)}</td>
+              <td>{money(d.tipsAgorot)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">{t('payReportTotal')}</th>
+            <td>{sum(rows, 'bills')}</td>
+            <td>{sum(rows, 'payments')}</td>
+            <td>{money(sum(rows, 'collectedAgorot'))}</td>
+            <td>{money(sum(rows, 'tipsAgorot'))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
+  return (
+    <>
+      <form className="pay-form pay-card pay-range" onSubmit={submit}>
+        <div className="field">
+          <label htmlFor={`${id}-from`}>{t('payReportFrom')}</label>
+          <input id={`${id}-from`} type="date" value={range.from} max={range.to} onChange={(e) => setRange({ ...range, from: e.target.value })} required />
+        </div>
+        <div className="field">
+          <label htmlFor={`${id}-to`}>{t('payReportTo')}</label>
+          <input id={`${id}-to`} type="date" value={range.to} min={range.from} onChange={(e) => setRange({ ...range, to: e.target.value })} required />
+        </div>
+        <div className="button-row">
+          <button type="submit" className="btn btn-primary" disabled={loading} aria-busy={loading}>{t('payReportShow')}</button>
+          <a className="btn" href={reportCsvUrl(range.from, range.to)} download>{t('payReportCsv')}</a>
+        </div>
+        {error && <p className="error" role="alert">{t(error)}</p>}
+      </form>
+      <div role="status" aria-live="polite">
+        {loading && <p className="hint">{t('cloudLoading')}</p>}
+        {data && !loading && data.days.length === 0 && <p className="hint">{t('payReportEmpty')}</p>}
+      </div>
+      {data && <p className="hint">{t('payReportHint', { tz: data.timezone })}</p>}
+      {live.length > 0 && table(live, 'payReportLive')}
+      {test.length > 0 && table(test, 'payReportTest')}
     </>
   );
 }

@@ -209,10 +209,10 @@ export async function paymentRoutes(app: FastifyInstance) {
     if (!q.success) throw badRequest();
     // Abandoned checkouts stop showing as "being paid" (checked with the provider first).
     await releaseStaleCheckouts(db, await activeProvider(db, config, app.deps.paymentHttp));
-    // "Open" also lists recent bills with money that needs a refund or review, so staff can't miss them.
+    // "Open" also lists bills with money that still needs a refund or review, so staff can't miss them.
     const where =
       q.data.view === 'open'
-        ? `(b.status = 'open' OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.paid_at > now() - interval '2 days'))`
+        ? `(b.status = 'open' OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.review_resolved_at IS NULL))`
         : "b.opened_at > now() - interval '2 days'";
     const bills = await db.query<BillRow & { table_label: string }>(
       `SELECT x.*, t.label AS table_label FROM (${BILL_SELECT} WHERE ${where} GROUP BY b.id) x
@@ -220,8 +220,8 @@ export async function paymentRoutes(app: FastifyInstance) {
     );
     const ids = bills.map((b) => b.id);
     const payments = ids.length
-      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null }>(
-          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, mode, provider_txn, created_at, paid_at
+      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; review_resolved_at: Date | null; review_note: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null }>(
+          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, review_resolved_at, review_note, provider, mode, provider_txn, created_at, paid_at
            FROM payments WHERE bill_id = ANY($1::uuid[]) ORDER BY created_at`,
           [ids],
         )
@@ -232,7 +232,7 @@ export async function paymentRoutes(app: FastifyInstance) {
         payments: payments
           .filter((p) => p.bill_id === b.id)
           .map((p) => ({
-            id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, provider: p.provider,
+            id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, reviewResolvedAt: p.review_resolved_at, reviewNote: p.review_note, provider: p.provider,
             mode: p.mode, transactionRef: p.provider_txn, createdAt: p.created_at, paidAt: p.paid_at,
           })),
       })),

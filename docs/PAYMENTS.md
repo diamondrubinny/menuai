@@ -81,6 +81,21 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
 | Card / Bit details | Payment | — | **Never reach MenuAI** | — | Provider only |
 
+## Report, export and flagged payments (owner)
+
+- **Report** (Pay at the table → Report):
+  - Shows, per business day (`BUSINESS_TIMEZONE`, default `Asia/Jerusalem`), the bills, payments, money collected and tips paid through the app. Real and test payments are shown separately.
+  - Cash and card payments at the till are not included.
+  - The range is up to 92 days.
+- **CSV export:**
+  - One row per payment: time, table, amount, tip, total, provider, mode, reference and review state.
+  - It is written for Excel: UTF-8 with a BOM, and cells that could start a formula get a `'` prefix (CSV injection).
+  - It contains no payer details, because MenuAI has none. Each export is recorded in the audit log.
+- **Flagged payments:**
+  - A payment that arrived after the bill was paid, closed or cancelled shows ⚠️ until the owner refunds it in the provider's dashboard and clicks **Mark as handled**, with a short note.
+  - The note and who handled it are kept, and the action is audited.
+  - Refunds through the provider's API come later (Phase 3d), once the provider's refund call is documented and tested.
+
 ## Grow: how it works here
 
 | Step | MenuAI does | Source |

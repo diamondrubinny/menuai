@@ -433,6 +433,77 @@ describe('pay at the table', () => {
     expect((await call('GET', '/api/payments/settings', 'owner')).json().settings.termsUrl).toBe('https://lumiere.example/terms?x="<b>');
   });
 
+  it('reports paid money by the business\'s calendar day (Israel time), owner only', async () => {
+    await enable();
+    const t = await table();
+    await openBill(t.id, 20000);
+    const one = await checkout(t.path, { share: 'custom', shareAmount: '100', tip: '10' });
+    await provider(one.demoPath, 'paid');
+    const two = await checkout(t.path, { share: 'full' });
+    await provider(two.demoPath, 'paid');
+    // 23:30 on 28 Oct and 00:30 on 29 Oct in Israel (UTC+2 after daylight saving ends).
+    await db.query("UPDATE payments SET paid_at = '2026-10-28T21:30:00Z' WHERE id = $1", [one.paymentId]);
+    await db.query("UPDATE payments SET paid_at = '2026-10-28T22:30:00Z' WHERE id = $1", [two.paymentId]);
+    const res = await call('GET', '/api/payments/report?from=2026-10-28&to=2026-10-29', 'owner');
+    expect(res.json()).toMatchObject({
+      timezone: 'Asia/Jerusalem',
+      days: [
+        { date: '2026-10-28', mode: 'test', bills: 1, payments: 1, collectedAgorot: 10000, tipsAgorot: 1000, openReviews: 0 },
+        { date: '2026-10-29', mode: 'test', bills: 1, payments: 1, collectedAgorot: 10000, tipsAgorot: 0, openReviews: 0 },
+      ],
+    });
+    expect((await call('GET', '/api/payments/report?from=2026-10-28&to=2026-10-29', 'editor')).statusCode).toBe(403);
+    for (const q of ['from=2026-10-29&to=2026-10-28', 'from=2026-01-01&to=2026-06-01', 'from=2026-02-30&to=2026-03-01', 'from=x&to=y', '']) {
+      expect((await call('GET', `/api/payments/report?${q}`, 'owner')).statusCode).toBe(400);
+    }
+  });
+
+  it('exports a CSV that Excel opens safely (no formulas), and audits the export', async () => {
+    await enable();
+    const t = await table('=HYPERLINK("https://evil.example","7")');
+    await openBill(t.id, 5000);
+    const p = await checkout(t.path, { share: 'full' });
+    await provider(p.demoPath, 'paid');
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const res = await call('GET', `/api/payments/report.csv?from=${yesterday}&to=${tomorrow}`, 'owner');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toBe(`attachment; filename="menuai-payments-${yesterday}-to-${tomorrow}.csv"`);
+    const [header, row] = res.body.replace(/^\uFEFF/, '').trim().split('\r\n');
+    expect(res.body.startsWith('\uFEFF')).toBe(true);
+    expect(header).toBe('"paid_at","table","amount","tip","total","provider","mode","reference","review","review_note"');
+    expect(row).toContain(`"'=HYPERLINK(""https://evil.example"",""7"")"`);
+    expect(row).toContain('"50.00","0.00","50.00","fake","test"');
+    expect(today).toBeTruthy();
+    expect(await db.query("SELECT 1 FROM audit_log WHERE action = 'payments.export'")).toHaveLength(1);
+    expect((await call('GET', `/api/payments/report.csv?from=${yesterday}&to=${tomorrow}`, 'editor')).statusCode).toBe(403);
+  });
+
+  it('lets the owner resolve a flagged payment once, and then it leaves the open list', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    await age(a.paymentId, 21);
+    expect((await call('POST', `/api/payments/bills/${billId}/cancel`, 'editor')).statusCode).toBe(200);
+    await chargeLate(a.paymentId);
+    await call('GET', `${t.path}/done/${a.paymentId}`, 'guest');
+    expect((await call('GET', '/api/payments/bills', 'editor')).json().bills.map((b: { id: string }) => b.id)).toContain(billId);
+
+    const resolve = (as: As, note = 'Refunded in the Grow dashboard') => call('POST', `/api/payments/payments/${a.paymentId}/resolve`, as, { note });
+    expect((await resolve('editor')).statusCode).toBe(403);
+    expect((await resolve('owner', ' ')).statusCode).toBe(400);
+    expect((await resolve('owner')).statusCode).toBe(200);
+    expect((await resolve('owner')).json()).toEqual({ error: 'nothing_to_resolve' });
+    expect((await call('POST', `/api/payments/payments/${'0'.repeat(8)}-0000-4000-8000-${'0'.repeat(12)}/resolve`, 'owner', { note: 'x' })).statusCode).toBe(404);
+    expect((await call('GET', '/api/payments/bills', 'editor')).json().bills.map((b: { id: string }) => b.id)).not.toContain(billId);
+    const recent = (await call('GET', '/api/payments/bills?view=recent', 'editor')).json().bills.find((b: { id: string }) => b.id === billId);
+    expect(recent.payments[0]).toMatchObject({ reviewReason: 'bill_not_open', reviewNote: 'Refunded in the Grow dashboard' });
+    expect(recent.payments[0].reviewResolvedAt).toBeTruthy();
+  });
+
   it('accepts provider notifications without an Origin, but nothing else', async () => {
     await enable();
     expect((await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: {} })).statusCode).toBe(200);

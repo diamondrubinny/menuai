@@ -60,6 +60,7 @@ services:
       # Encrypts payment provider credentials; without it, pay at the table is off (docs/PAYMENTS.md).
       PAYMENTS_KEY: ${PAYMENTS_KEY:-}
       PAYMENTS_GROW_LIVE: ${PAYMENTS_GROW_LIVE:-false}
+      BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Asia/Jerusalem}
     volumes:
       - published:/var/lib/menuai/published
       - uploads:/var/lib/menuai/uploads

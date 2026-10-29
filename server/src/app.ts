@@ -19,6 +19,7 @@ import { publishRoutes, sendMenuNotFound } from './publish/routes';
 import { createFileStore, type PublishStore } from './publish/store';
 import { uploadRoutes } from './uploads/routes';
 import { paymentRoutes } from './payments/routes';
+import { paymentReportRoutes } from './payments/report';
 import { guestPaymentRoutes, NOTIFY_ROUTE } from './payments/guest';
 import { applyRetention } from './maintenance/retention';
 import { createMediaStore, type MediaStore } from './uploads/store';
@@ -140,6 +141,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (!scanner) app.log.warn('CLAMAV_URL is not set: image uploads are disabled (every upload must be virus scanned).');
   await app.register(uploadRoutes, { media, scanner });
   await app.register(paymentRoutes);
+  await app.register(paymentReportRoutes);
   await app.register(guestPaymentRoutes);
 
   // Daily retention run: expired tokens and sessions, old audit entries, unused images.

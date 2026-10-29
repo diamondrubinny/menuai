@@ -824,6 +824,13 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 .pay-actions { justify-content: flex-start; margin-top: 0.75rem; }
 .pay-amount-input { inline-size: 8rem; }
 .pay-review { color: var(--danger, #a1271c); }
+.pay-resolve { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.pay-resolve input { inline-size: 16rem; max-inline-size: 100%; }
+.pay-range { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); max-width: 640px; align-items: end; }
+.pay-range .button-row, .pay-range .error { grid-column: 1 / -1; }
+.pay-report caption { text-align: start; font-weight: 700; padding: 0.5rem 0; }
+.pay-report td, .pay-report tfoot th { font-variant-numeric: tabular-nums; }
+.pay-report tfoot th, .pay-report tfoot td { font-weight: 800; border-top: 2px solid var(--border); }
 .pay-qr { display: flex; justify-content: center; padding: 0.5rem; background: #fff; border-radius: 8px; margin: 0.5rem 0; }
 .radio-row { display: flex; align-items: center; gap: 0.5rem; min-block-size: 2.25rem; }
 .field-check { display: flex; align-items: center; gap: 0.5rem; }

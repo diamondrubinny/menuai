@@ -154,6 +154,8 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
   - decline;
   - two guests paying at once.
 - 🧑 The Grow sandbox run in [docs/PAYMENTS.md](PAYMENTS.md#grow-sandbox-run-before-going-live) passed: paid, split, tip, cancel, and two guests at once.
+- 🧑 `BUSINESS_TIMEZONE` matches the restaurant. The daily report matches the provider's dashboard for a test day.
+- 🧑 Someone owns the ⚠️ flagged payments: they refund in the provider's dashboard, then **Mark as handled**.
 - 🧑 A payment-terms link is set in Settings, so guests must accept the terms (Grow's review requires it).
 - 🧑 Before going **live** with Grow:
   - Grow's production review is done (server updates answered with HTTP 200, `approveTransaction` sent);

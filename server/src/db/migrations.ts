@@ -192,4 +192,14 @@ CREATE INDEX payment_events_at ON payment_events (at);
 ALTER TABLE payment_settings ADD COLUMN terms_url text CHECK (terms_url ~ '^https://' AND length(terms_url) <= 500);
 `,
   },
+  {
+    id: '0005_payment_review',
+    sql: `
+-- Staff close the loop on a flagged payment (refunded in the provider's dashboard, or reviewed).
+ALTER TABLE payments ADD COLUMN review_resolved_at timestamptz;
+ALTER TABLE payments ADD COLUMN review_resolved_by uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE payments ADD COLUMN review_note text CHECK (length(review_note) <= 200);
+CREATE INDEX payments_paid_at ON payments (paid_at) WHERE status = 'paid';
+`,
+  },
 ];
