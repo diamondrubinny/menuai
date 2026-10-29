@@ -132,3 +132,75 @@ Design:
 - **Storage:** `receipt_number` and `receipt_url` on the payment (migration `0008`), first value wins. The link is a bearer link to a document held by the provider or the invoice company, and the document can show the payer's name. It is shown only on the paying guest's result page and on the staff screen.
 - **Guest result page:** a "🧾 Receipt" link (new tab) once the receipt has arrived. Whether and how the provider also emails it follows its own settings.
 - **Staff screen** shows the receipt number with its link. **CSV** gets a `receipt` column.
+
+## 10. Phase 3e: Order from the menu (flow B), draft for approval
+
+### Goal
+A guest at a table (tablet or phone) adds dishes from the published menu to a cart and sends the order. Staff see it on the payments screen. Payment then uses the existing table bill flow (or pays at once; see decision 1).
+
+### User stories
+- **Guest:** I pick dishes from the menu, choose a size where there is one, set quantities and add a short note ("no onion"). I see the total and send the order from the table.
+- **Waiter:** new orders appear on my screen within seconds. I accept one (its items go onto the table's bill) or reject it with a reason the guest sees.
+- **Owner:** I turn ordering on or off, choose which menu can be ordered from, and choose whether ordering needs an open bill.
+
+### Decisions needed (the questions to you)
+1. **Order → payment:**
+   - **(a) recommended:** the order is added to the table's bill and paid with the existing flow (pay all, split, tip). The waiter approves every order, and nothing is charged before that.
+   - **(b)** pay first: the guest pays for the order immediately, and the order goes to staff only after it is paid. This suits counters and takeaway, but needs automatic refunds when the kitchen rejects an order.
+2. **Who approves orders:** the waiter on the existing screen (recommended for the MVP), or a separate kitchen screen (later).
+3. **Add-ons with a price** (extra cheese +₪5): not in the MVP. The menu doesn't model them yet. Sizes (variants) and a free-text note are in.
+
+### Architecture (for 3a, all server-side checks)
+- **The published menu stays static.**
+  - The "🛒" cart lives in the same `tablePay.js` runtime, which already knows the table from the URL fragment.
+  - It is shown only on server-published menus, and only when ordering is on.
+  - Sending an order is a `POST /t/<token>/order` with `[{itemId, variantId?, qty, note?}]`.
+- **Prices are never trusted from the browser.**
+  - The server loads the menu's **live published version** and checks that every item exists, is not hidden or sold out, and that the variant is valid.
+  - It recomputes the price in agorot from that version (`price × 100`, rounded once).
+  - Limits per order: up to 30 lines, up to 20 of each item, and a note of up to 140 characters per line.
+- **Rate limits per table token and per IP, plus an idempotency key per order** (a double tap creates one order).
+- **The CSP of menu pages** gets `connect-src 'self'` for this one endpoint. Everything else is unchanged.
+- **Tables (migration):**
+  - `orders`: id, table, status (`new`, `accepted`, `rejected`), the total computed by the server, the menu version id, times, accepted_by;
+  - `order_lines`: item and variant ids, a name snapshot in the guest's language, unit price, quantity, note.
+- **On accept (decision 1a):**
+  - the order's total is added to the table's open bill, or a new bill is opened, under the bill row lock, with the same rules as checkout;
+  - the bill's note lists the lines;
+  - the guest's page polls the order status and shows accepted or rejected.
+- **Staff screen:**
+  - an **Orders** section that refreshes every 5 s, with an optional sound and a visible "new" badge (not color only);
+  - it shows the lines and notes;
+  - Accept / Reject (with a reason) are editor actions and are audited.
+
+### Security, privacy, accessibility
+- **Threat model:**
+  - price tampering → server-side recomputation;
+  - spam orders from a leaked QR → per-table rate limits, waiter approval, and the existing **Replace QR code**;
+  - XSS in notes → plain text, escaped everywhere and length-limited;
+  - another table's orders → every query is scoped to the table token.
+- **Privacy:** an order holds no personal data. Notes are free text, so the UI asks not to write personal details. Retention follows the bill's.
+- **Accessibility:**
+  - the cart is a labelled dialog with focus management;
+  - quantity steppers are buttons with names and a live total, with 44 px targets;
+  - RTL;
+  - order status is announced with `role="status"`.
+- ⚖️ Food allergen information remains the restaurant's responsibility. The cart repeats each item's allergen tags but makes no claims.
+
+### Files (estimate)
+- **Server:**
+  - `server/src/orders/{service,routes,guest}.ts`
+  - migration `0009_orders`
+  - tests
+- **Client:**
+  - `src/renderer/tablePay.js` (cart)
+  - `src/core/exportHtml.ts` (CSP/runtime)
+  - `src/pages/PaymentsPage.tsx` (Orders section)
+  - `src/api/orders.ts`
+  - i18n in he/en/ar
+- **Docs:** `docs/PAYMENTS.md`, CHANGELOG, data map, checklist.
+
+### Phases
+- **3e-1:** order model, the guest endpoint with server-side pricing, the staff Orders section with accept or reject, and the bill integration (1a). Includes tests, a browser check and axe.
+- **3e-2:** the cart UI on the menu, and order status for the guest.
+- **3e-3 (optional):** kitchen display, sound alerts, and pay-first mode (1b) with automatic refund on reject.
