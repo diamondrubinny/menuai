@@ -79,6 +79,7 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Payments (share, tip, status, provider reference, times) | Reconciliation, refunds | Contract, legal obligation | DB | As bills | Provider holds the transaction |
 | Provider handles for refunds (Grow transactionId + transactionToken, PayPlus transaction uid; not card data) | Refunding through the provider's API | Contract | DB, with the payment | As bills | Provider |
 | Refunds (amount, status, the provider's refund reference or error code, owner's note, who and when) | Accounting, audit | Contract, legal obligation | DB | As bills | Provider performs the refund |
+| Receipt number and link (the document is issued and held by the provider or its invoice company; it can show the payer's name) | Giving the guest and staff the receipt | Contract, legal obligation | DB, with the payment (link only) | As bills | Provider / invoice company (DPA ⚖️) |
 | Abandoned checkouts | Releasing reservations | Legitimate interest | DB | Marked expired after 24 h | — |
 | Provider notification log (no names, phones or card data) | Troubleshooting, audit | Legitimate interest | DB | 13 months | — |
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
@@ -141,6 +142,21 @@ On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the 
 | Grow | `refundTransaction` (multipart: `userId`, `transactionId`, `transactionToken`, `refundSum`, `pageCode`). Only Grow's `status: 1` counts as refunded. The response layout is not published, so no refund reference is read. | Grow docs: Refund Transaction, Refund overview |
 | PayPlus | `Transactions/RefundByTransactionUID` (JSON: `transaction_uid`, `amount`; `api-key` + `secret-key`). `results.status` success, with the refund's `status_code` 000 when present. | PayPlus docs: Refund by transaction UID |
 
+## Receipts
+
+MenuAI **does not issue receipts or tax invoices**. Turn on the provider's invoice module, or the accounting system linked to it, in the provider's dashboard. ⚖️ Your accountant decides the document type. When the provider reports the document, MenuAI keeps its number and link:
+- **The guest's result page** shows **🧾 View receipt** (opens in a new tab) once it has arrived. The link is shown only to the device that paid.
+- **The staff screen** shows the receipt number with its link, and the **CSV** has a `receipt` column.
+- **PayPlus** reports the document inside the signed callback (`invoice`). Only an issued document (`status: Success`) with an `https` link is kept.
+- **Grow** posts it to a separate address (`invoiceNotifyUrl`), which MenuAI creates per payment: `/api/payments/receipt/grow/<payment>/<random key>`. That call is not signed, so it counts only if:
+  - the key matches;
+  - the body matches the payment's `processId`, and its `transactionId` when we have it;
+  - the link is `https` on Grow's own domains.
+
+  The key is redacted from the server and nginx logs.
+- Only the first receipt is kept for each payment.
+- Grow's receipt format isn't documented: JSON and form fields are both accepted. Confirm it in the sandbox run.
+
 ## Grow: how it works here
 
 | Step | MenuAI does | Source |
@@ -151,6 +167,7 @@ On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the 
 | Acknowledgement | `approveTransaction` with the fields from the update. If it fails, the payment stays recorded and Grow resends the update (at 10, 20 and 30 minutes). | Grow docs: Approve Transaction |
 | Grow unreachable | The notification gets `503` and Grow retries. The guest's result page says "confirming…". | |
 | Payer name and phone | Passed to Grow and **never stored** by MenuAI (a test checks the database). | |
+| Receipt | `invoiceNotifyUrl` = a per-payment address with a random key. Grow posts `transactionId`, `processId`, `invoiceNumber`, `invoiceUrl` there once its invoice module issued the document. Kept only on a full match (see Receipts). | Grow docs: Invoice Server Response |
 | Terms | If the owner sets a payment-terms link, guests must tick "I accept the payment terms" (enforced on the server). Grow's production review requires this. | Grow docs: Transition to Production |
 
 ## PayPlus: how it works here
@@ -159,6 +176,7 @@ On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the 
 |---|---|---|
 | Checkout | `PaymentPages/generateLink` is called from the server with the `api-key` and `secret-key` headers. It sends `payment_page_uid`, `charge_method` 1 (charge), `amount` in shekels, `currency_code` ILS, `language_code` (he/en), `expiry_datetime` 20 minutes (the reservation), the success/failure/cancel/callback URLs, and `more_info` = our payment id. No payer details are sent: PayPlus's page collects what it needs. The guest is redirected only to an `https` page on `*.payplus.co.il`. | PayPlus docs: Generate Payment Link |
 | Callback | Accepted at `/api/payments/notify/payplus` as JSON. It is trusted only if `user-agent` is `PayPlus` and the `hash` header equals base64(HMAC-SHA256(secret key, **exact raw body**)), compared in constant time. It must match our `page_request_uid`. `status_code` 000 with the exact amount counts as paid; another code counts as declined. Card, ID and customer fields are never read. | PayPlus docs: Validate Requests, Transaction Callback |
+| Receipt | When an invoice company is connected, the signed callback carries `invoice` (`docu_number`, `original_url`, `status`). `initial_invoice` is not sent, so the payment page's own setting applies. | PayPlus docs: Transaction Callback |
 | Return before the callback | `PaymentPages/ipn` with our `payment_request_uid`. The response layout is not published, so only an approved record for *this* page request, with the exact amount, counts. | PayPlus docs: IPN |
 | Late payment | The page expires after 20 minutes, which is when a reservation can be released. Any charge that still arrives is recorded and flagged for refund or review. | |
 
@@ -172,6 +190,7 @@ On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the 
    - PayPlus's dashboard shows the transaction.
 4. Try the rejected card **5326-1402-0001-0120**. Nothing is charged, and the guest can try again. Then test a split, a tip, a cancel, and two phones paying at once.
 5. Refund part of a test payment, then the rest, from the bills screen. Check that both show as **Refunded** and that PayPlus's dashboard shows them.
+   If an invoice company is connected in the sandbox, check that the guest's result page and the staff screen show **🧾 Receipt** with the right document.
 6. Add `payplus` to `PAYMENTS_LIVE_PROVIDERS`, restart, enter the **production** credentials and switch to **Live**.
 
 ## Grow sandbox run (before going live)
@@ -189,7 +208,8 @@ Grow sends server updates only to a public HTTPS address (not localhost), so run
    - a tip;
    - cancelling on Grow's page (you return to the table page and nothing is charged);
    - two phones paying the whole bill at once (the second is refused).
-5. Refunds: refund a payment made **today** in full (a cancellation). Check that a partial refund of today's payment is refused with a clear message. The next day, refund part of another payment. Check both in Grow's dashboard. If Grow's refund response has a reference field, note it for a follow-up.
+5. Receipts (when Grow's invoice module is on): within a minute or so, the staff screen shows **🧾 Receipt** for the payment. Reloading the guest's result page shows it too. If not, check `payment_events` for `receipt` entries and the format Grow sent.
+   Refunds: refund a payment made **today** in full (a cancellation). Check that a partial refund of today's payment is refused with a clear message. The next day, refund part of another payment. Check both in Grow's dashboard. If Grow's refund response has a reference field, note it for a follow-up.
 6. Bit, Apple Pay and Google Pay have no sandbox at Grow and charge real money. Test them in live mode with small amounts.
 7. If anything does not match, export `payment_events` for the time of the test (it holds no personal data), and keep the request ids from the server log.
 8. Request Grow's production review. Then:

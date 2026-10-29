@@ -17,6 +17,8 @@
  *   3. Without a callback (the guest returning first, stale-checkout checks) the status is asked with
  *      PaymentPages/ipn. Its response layout is not published, so it is parsed conservatively: anything
  *      not clearly "approved (status_code 000) for the exact amount" stays pending.
+ *   Receipts: when an invoice company is integrated, the signed callback carries `invoice`
+ *   (docu_number, original_url, status). `initial_invoice` is not sent: the payment page's setting applies.
  *   4. Refunds (owner, from the staff screen): Transactions/RefundByTransactionUID with the charge's
  *      transaction `uid` (kept from step 2/3) and the amount (at most what was charged).
  */
@@ -25,7 +27,7 @@ import { agorotToDecimal, decimalToAgorot } from '../money';
 import { RESERVATION_MINUTES } from '../reservation';
 import {
   ProviderError, type Notification, type NotificationContext, type PaymentMode, type PaymentProvider, type ProviderRef, type Session,
-  type RefundRequest, type RefundResult, type SessionRequest, type VerifiedStatus,
+  type Receipt, type RefundRequest, type RefundResult, type SessionRequest, type VerifiedStatus,
 } from './types';
 import type { Http } from './grow';
 
@@ -82,6 +84,20 @@ function outcomeOf(transaction: Json): VerifiedStatus {
     transactionRef: str(transaction.approval_number) ?? str(transaction.number) ?? str(transaction.uid),
     refundRef: uid ? { transactionUid: uid } : undefined,
   };
+}
+
+/** The callback's `invoice` (when an invoice company is integrated): kept only when issued, with an https link. */
+function receiptOf(invoice: unknown): Receipt | undefined {
+  if (!isObj(invoice) || str(invoice.status)?.toLowerCase() !== 'success') return undefined;
+  const link = str(invoice.original_url);
+  if (!link) return undefined;
+  try {
+    const url = new URL(link);
+    if (url.protocol !== 'https:' || url.toString().length > 500) return undefined;
+    return { number: str(invoice.docu_number)?.replace(/[^\w./-]/g, '').slice(0, 60) || null, url: url.toString() };
+  } catch {
+    return undefined;
+  }
 }
 
 export function payplusProvider(credentials: PayPlusCredentials, mode: PaymentMode, http: Http = fetch): PaymentProvider {
@@ -169,7 +185,7 @@ export function payplusProvider(credentials: PayPlusCredentials, mode: PaymentMo
         paymentId: str(transaction.more_info),
         fields: { pageRequestUid },
         // Signed by PayPlus: its outcome is authentic (amount still checked against our payment).
-        signedStatus: outcomeOf(transaction),
+        signedStatus: { ...outcomeOf(transaction), receipt: receiptOf(body.invoice) },
       };
     },
 

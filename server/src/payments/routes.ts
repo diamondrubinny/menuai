@@ -234,8 +234,9 @@ export async function paymentRoutes(app: FastifyInstance) {
     );
     const ids = bills.map((b) => b.id);
     const payments = ids.length
-      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; review_resolved_at: Date | null; review_note: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null }>(
-          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, review_resolved_at, review_note, provider, mode, provider_txn, created_at, paid_at
+      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; review_resolved_at: Date | null; review_note: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null; receipt_number: string | null; receipt_url: string | null }>(
+          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, review_resolved_at, review_note, provider, mode, provider_txn, created_at, paid_at,
+             receipt_number, receipt_url
            FROM payments WHERE bill_id = ANY($1::uuid[]) ORDER BY created_at`,
           [ids],
         )
@@ -254,6 +255,7 @@ export async function paymentRoutes(app: FastifyInstance) {
           .map((p) => ({
             id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, reviewResolvedAt: p.review_resolved_at, reviewNote: p.review_note, provider: p.provider,
             mode: p.mode, transactionRef: p.provider_txn, createdAt: p.created_at, paidAt: p.paid_at,
+            receiptNumber: p.receipt_number, receiptUrl: p.receipt_url,
             refunds: refunds.filter((r) => r.payment_id === p.id).map(refundDto),
           })),
       })),

@@ -117,3 +117,18 @@ Design:
 - A refund does not change the bill (it is an adjustment after payment). A flagged payment that is fully refunded is marked handled automatically.
 - Report: refunded amounts per business day (by refund date); CSV: refunded amount per payment.
 - Live refunds are covered by the same sandbox run that unlocks live mode for a provider.
+
+## 9. Receipts from the provider (Phase 3d)
+
+MenuAI does **not** issue receipts or tax invoices itself. The business turns on its provider's invoice module, or the accounting system linked to it, in the provider's dashboard. The accountant decides the document type (⚖️). MenuAI then keeps the document's number and link so that the guest and staff can open it.
+
+Sources (checked 2026-10-29, *verify in the sandbox run*):
+- **Grow:** `createPaymentProcess` takes an optional `invoiceNotifyUrl`. Once the invoice is generated, Grow POSTs `transactionId`, `processId`, `invoiceNumber` and `invoiceUrl` there. The request format and any authentication are **not documented**: https://developers.grow.business/reference/invoice-server-response.
+- **PayPlus:** the signed transaction callback carries `invoice` (`docu_number`, `original_url`, `copy_url`, `status`) when an invoice company is integrated: https://docs.payplus.co.il (transaction callback example). `initial_invoice` is not sent, so the payment page's own setting applies.
+
+Design:
+- **PayPlus:** the receipt comes inside the signed callback. Only `status: Success` with an `https` link is kept.
+- **Grow:** the callback is unsigned, so `invoiceNotifyUrl` carries a per-payment 128-bit random key: `/api/payments/receipt/grow/<payment>/<key>`. The key is stored with the payment and compared in constant time. The body must also match the stored `processId`, and `transactionId` when we have it. The link must be `https` on Grow's own hosts. JSON or form bodies, as an object or a one-element array, are all accepted, because the format is undocumented. Path secrets are redacted from the app log and the nginx log.
+- **Storage:** `receipt_number` and `receipt_url` on the payment (migration `0008`), first value wins. The link is a bearer link to a document held by the provider or the invoice company, and the document can show the payer's name. It is shown only on the paying guest's result page and on the staff screen.
+- **Guest result page:** a "🧾 Receipt" link (new tab) once the receipt has arrived. Whether and how the provider also emails it follows its own settings.
+- **Staff screen** shows the receipt number with its link. **CSV** gets a `receipt` column.

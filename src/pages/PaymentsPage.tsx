@@ -324,6 +324,11 @@ function BillsSection({ isOwner }: { isOwner: boolean }) {
                         <span className={`team-badge${p.status === 'paid' ? '' : ' is-off'}`}>{t(`payPayment_${p.status}` as UiKey)}</span>
                         {p.mode === 'test' && <span className="hint">{t('payTestBadge')}</span>}
                         {p.transactionRef && <bdi className="hint" dir="ltr">{p.transactionRef}</bdi>}
+                        {p.receiptUrl && (
+                          <a href={p.receiptUrl} target="_blank" rel="noopener noreferrer">
+                            🧾 {t('payReceipt')}{p.receiptNumber && <> <bdi dir="ltr">{p.receiptNumber}</bdi></>}<span className="visually-hidden"> {t('payNewTab')}</span>
+                          </a>
+                        )}
                         {p.reviewReason && !p.reviewResolvedAt && <strong className="pay-review">⚠️ {t(`payReview_${p.reviewReason}` as UiKey)}</strong>}
                         {p.reviewResolvedAt && <span className="hint">✓ {t('payReviewResolved')}{p.reviewNote ? `: ${p.reviewNote}` : ''}</span>}
                         {isOwner && p.reviewReason && !p.reviewResolvedAt && (resolving?.id === p.id ? (

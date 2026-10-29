@@ -96,21 +96,21 @@ export async function paymentReportRoutes(app: FastifyInstance) {
     const { from, to } = parseRange(req);
     const rows = await db.query<{
       at: string; table_label: string; share_agorot: number; tip_agorot: number; provider: string; mode: string;
-      provider_txn: string | null; review_reason: string | null; review_note: string | null; review_resolved_at: Date | null; refunded: number;
+      provider_txn: string | null; review_reason: string | null; review_note: string | null; review_resolved_at: Date | null; refunded: number; receipt_number: string | null;
     }>(
       `SELECT to_char(p.paid_at AT TIME ZONE $1, 'YYYY-MM-DD HH24:MI') AS at, t.label AS table_label,
-         p.share_agorot, p.tip_agorot, p.provider, p.mode, p.provider_txn, p.review_reason, p.review_note, p.review_resolved_at,
+         p.share_agorot, p.tip_agorot, p.provider, p.mode, p.provider_txn, p.receipt_number, p.review_reason, p.review_note, p.review_resolved_at,
          (SELECT COALESCE(sum(f.amount_agorot), 0) FROM payment_refunds f WHERE f.payment_id = p.id AND f.status = 'succeeded')::int AS refunded
        FROM payments p JOIN bills b ON b.id = p.bill_id JOIN dining_tables t ON t.id = b.table_id
        WHERE ${IN_RANGE} ORDER BY p.paid_at
        LIMIT 50000`,
       [tz, from, to],
     );
-    const header = ['paid_at', 'table', 'amount', 'tip', 'total', 'refunded', 'provider', 'mode', 'reference', 'review', 'review_note'];
+    const header = ['paid_at', 'table', 'amount', 'tip', 'total', 'refunded', 'provider', 'mode', 'reference', 'receipt', 'review', 'review_note'];
     const lines = rows.map((r) =>
       [
         r.at, r.table_label, agorotToDecimal(r.share_agorot), agorotToDecimal(r.tip_agorot), agorotToDecimal(r.share_agorot + r.tip_agorot),
-        agorotToDecimal(r.refunded), r.provider, r.mode, r.provider_txn, r.review_reason ? `${r.review_reason}${r.review_resolved_at ? ' (resolved)' : ''}` : '', r.review_note,
+        agorotToDecimal(r.refunded), r.provider, r.mode, r.provider_txn, r.receipt_number, r.review_reason ? `${r.review_reason}${r.review_resolved_at ? ' (resolved)' : ''}` : '', r.review_note,
       ].map(csvCell).join(','),
     );
     // BOM so Excel opens Hebrew table names correctly; CRLF per RFC 4180.

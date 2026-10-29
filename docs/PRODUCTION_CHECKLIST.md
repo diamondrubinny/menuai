@@ -165,7 +165,7 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
 - 🧑 Printed table QR codes open `/t/…` (nginx forwards `/t/` and `/pay/` to the API). If a printed code leaks, use **Replace QR code**.
 - 🧑 Waiters (editors) can open, adjust and close bills. Only owners can change settings and tables (try it with an editor account).
 - 🧑 The nginx log shows `/t/[table]`, never the table code.
-- ⚖️ Receipts and tax invoices: who issues them, and the allocation-number rules. An accountant must confirm.
+- ⚖️ Receipts and tax invoices: who issues them, and the allocation-number rules. An accountant must confirm. MenuAI issues none: turn on the provider's invoice module and check in the sandbox run that the 🧾 receipt link appears.
 - ⚖️ Payment terms, the cancellation/refund policy and the privacy policy payments section, checked by a lawyer. A DPA with the payment provider.
 - 🌐 An Arabic native speaker reviews the guest pages.
 - 🔍 A penetration test covers `/t/`, `/pay/` and `/api/payments/notify/`.

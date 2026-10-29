@@ -70,6 +70,9 @@ export interface BillPayment {
   transactionRef: string | null;
   createdAt: string;
   paidAt: string | null;
+  /** The provider's receipt (its invoice module issues it; MenuAI doesn't). */
+  receiptNumber: string | null;
+  receiptUrl: string | null;
   refunds: Refund[];
 }
 

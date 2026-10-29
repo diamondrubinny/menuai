@@ -233,4 +233,12 @@ CREATE INDEX payment_refunds_completed ON payment_refunds (completed_at) WHERE s
 CREATE UNIQUE INDEX payment_refunds_one_open ON payment_refunds (payment_id) WHERE status IN ('pending', 'unknown');
 `,
   },
+  {
+    id: '0008_payment_receipts',
+    sql: `
+-- The business's receipt, issued by the provider's invoice module (MenuAI issues none): number and link.
+ALTER TABLE payments ADD COLUMN receipt_number text CHECK (length(receipt_number) <= 60);
+ALTER TABLE payments ADD COLUMN receipt_url text CHECK (receipt_url ~ '^https://' AND length(receipt_url) <= 500);
+`,
+  },
 ];

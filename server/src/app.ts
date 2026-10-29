@@ -22,7 +22,7 @@ import { uploadRoutes } from './uploads/routes';
 import { paymentRoutes } from './payments/routes';
 import { paymentReportRoutes } from './payments/report';
 import { paymentRefundRoutes } from './payments/refunds';
-import { guestPaymentRoutes, NOTIFY_ROUTE } from './payments/guest';
+import { guestPaymentRoutes, NOTIFY_ROUTE, RECEIPT_ROUTE } from './payments/guest';
 import { applyRetention } from './maintenance/retention';
 import { createMediaStore, type MediaStore } from './uploads/store';
 import { clamdScanner, unscanned, type Scanner } from './uploads/clamd';
@@ -55,7 +55,9 @@ declare module 'fastify' {
  */
 export function safeUrl(url: string): string {
   const i = url.indexOf('?');
-  const path = (i === -1 ? url : url.slice(0, i)).replace(/^\/t\/[^/]+/, '/t/[table]');
+  const path = (i === -1 ? url : url.slice(0, i))
+    .replace(/^\/t\/[^/]+/, '/t/[table]')
+    .replace(/^(\/api\/payments\/receipt\/[^/]+)\/.*/, '$1/[redacted]');
   return i === -1 ? path : `${path}?[redacted]`;
 }
 
@@ -121,10 +123,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const allowedOrigin = new URL(config.PUBLIC_URL).origin;
   app.addHook('onRequest', async (req) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
-    // Payment providers call this server-to-server (no browser, no Origin). It changes nothing on its
-    // own say-so: every notification is checked with the provider first (payments/service.ts).
+    // Payment providers call these server-to-server (no browser, no Origin). They change nothing on their
+    // own say-so: every notification is checked with the provider first, and a receipt callback must
+    // carry the payment's random key and match its stored identifiers (payments/service.ts).
     // Matched by route (not by URL prefix), so no path trick can carry the exemption to another endpoint.
-    if (req.routeOptions.url === NOTIFY_ROUTE) return;
+    if (req.routeOptions.url === NOTIFY_ROUTE || req.routeOptions.url === RECEIPT_ROUTE) return;
     if (req.headers.origin !== allowedOrigin) throw forbidden();
   });
 

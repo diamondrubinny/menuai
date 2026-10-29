@@ -260,4 +260,32 @@ describe('PayPlus provider', () => {
       ]);
     });
   });
+
+  describe('receipts', () => {
+    it('keeps the invoice from a signed callback and shows it on the guest\'s result page', async () => {
+      const path = await ready(28450);
+      const id = await checkout(path, { share: 'full' });
+      const invoice = { uuid: randomUUID(), docu_number: '90191', original_url: 'https://invoice.company.co.il/front/documents/get/17d2201b', copy_url: 'https://invoice.company.co.il/x/copy', integrator_name: 'Invoice Company', status: 'Success' };
+      expect((await notify({ ...callbackBody(id), invoice })).json()).toMatchObject({ outcome: 'paid' });
+      const [row] = await db.query<{ receipt_number: string; receipt_url: string }>('SELECT receipt_number, receipt_url FROM payments WHERE id = $1', [id]);
+      expect(row).toEqual({ receipt_number: '90191', receipt_url: invoice.original_url });
+      const done = await app.inject({ method: 'GET', url: `${path}/done/${id}?lang=en` });
+      expect(done.body).toContain(`href="${invoice.original_url}" target="_blank" rel="noopener noreferrer">🧾 View receipt`);
+    });
+
+    it('also takes the invoice from a callback that arrives after the payment was confirmed, but never an unissued or non-https one', async () => {
+      const path = await ready(28450);
+      const id = await checkout(path, { share: 'full' });
+      const base = { uuid: randomUUID(), docu_number: '7', original_url: 'https://invoice.company.co.il/d/1', status: 'Success' };
+      expect((await notify({ ...callbackBody(id), invoice: { ...base, status: 'Failed' } })).json()).toMatchObject({ outcome: 'paid' });
+      await notify({ ...callbackBody(id), invoice: { ...base, original_url: 'http://invoice.company.co.il/d/1' } });
+      const none = await db.query<{ receipt_url: string | null }>('SELECT receipt_url FROM payments WHERE id = $1', [id]);
+      expect(none[0]!.receipt_url).toBeNull();
+      await notify({ ...callbackBody(id), invoice: base });
+      const [row] = await db.query<{ receipt_url: string | null }>('SELECT receipt_url FROM payments WHERE id = $1', [id]);
+      expect(row!.receipt_url).toBe(base.original_url);
+      // The receipt callback route is Grow's: PayPlus receipts never come through it.
+      expect((await app.inject({ method: 'POST', url: `/api/payments/receipt/payplus/${id}/${'a'.repeat(32)}`, payload: {} })).json()).toEqual({ ok: true });
+    });
+  });
 });

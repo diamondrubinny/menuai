@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { Config } from '../config';
 import type { SqlClient } from '../db/sql';
@@ -13,7 +13,7 @@ import { computeCharge, type BillTotals, type Charge, type ShareChoice, type Tip
 import { open, seal } from './crypto';
 import { createProvider } from './providers';
 import type { Http } from './providers/grow';
-import { ProviderError, type Notification, type NotificationContext, type Payer, type VerifiedStatus, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
+import { ProviderError, type Notification, type NotificationContext, type Payer, type Receipt, type VerifiedStatus, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
 
 import { RESERVATION_MINUTES } from './reservation';
 
@@ -186,8 +186,8 @@ export interface CheckoutInput {
   tip: TipChoice;
   payer: Payer;
   locale: string;
-  /** Builds the guest-facing return URLs for a payment id. */
-  urls: (paymentId: string) => { successUrl: string; cancelUrl: string; notifyUrl: string };
+  /** Builds the provider-facing URLs for a payment id (and its receipt-callback key, when the provider has one). */
+  urls: (paymentId: string, receiptKey: string | null) => { successUrl: string; cancelUrl: string; notifyUrl: string; receiptNotifyUrl?: string };
   description: string;
 }
 
@@ -219,6 +219,8 @@ export async function startCheckout(
     return { paymentId: payment!.id, charge };
   });
 
+  // A per-payment key in the receipt callback's URL: that callback is unsigned (see the receipt route).
+  const receiptKey = provider.receiptCallback ? randomBytes(16).toString('hex') : null;
   try {
     const session = await provider.createSession({
       paymentId: reserved.paymentId,
@@ -226,9 +228,10 @@ export async function startCheckout(
       description: input.description,
       payer: input.payer,
       locale: input.locale,
-      ...input.urls(reserved.paymentId),
+      ...input.urls(reserved.paymentId, receiptKey),
     });
-    await db.query('UPDATE payments SET provider_ref = $2 WHERE id = $1', [reserved.paymentId, JSON.stringify(session.ref)]);
+    const ref = receiptKey ? { ...session.ref, receiptKey } : session.ref;
+    await db.query('UPDATE payments SET provider_ref = $2 WHERE id = $1', [reserved.paymentId, JSON.stringify(ref)]);
     return { paymentId: reserved.paymentId, redirectUrl: session.redirectUrl, charge: reserved.charge };
   } catch (err) {
     // Release the reservation: the guest can try again right away.
@@ -250,15 +253,24 @@ export interface PaymentRow {
   provider: ProviderId;
   provider_ref: ProviderRef;
   created_at: Date;
+  receipt_url: string | null;
 }
+
+const PAYMENT_COLUMNS = 'id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at, receipt_url';
 
 export async function loadPayment(db: SqlClient, id: string): Promise<PaymentRow | null> {
   if (!z.uuid().safeParse(id).success) return null;
-  const [row] = await db.query<PaymentRow>(
-    'SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at FROM payments WHERE id = $1',
-    [id],
-  );
+  const [row] = await db.query<PaymentRow>(`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE id = $1`, [id]);
   return row ?? null;
+}
+
+/** Keeps the first receipt reported for a payment (a later, different one is ignored). */
+async function storeReceipt(db: SqlClient, paymentId: string, receipt: Receipt): Promise<boolean> {
+  const rows = await db.query(
+    'UPDATE payments SET receipt_number = $2, receipt_url = $3 WHERE id = $1 AND receipt_url IS NULL RETURNING 1',
+    [paymentId, receipt.number, receipt.url],
+  );
+  return rows.length > 0;
 }
 
 async function event(db: SqlClient, paymentId: string | null, provider: string, kind: string, outcome: string) {
@@ -314,6 +326,7 @@ export async function verifyPayment(
         [payment.id, status.transactionRef?.slice(0, 100) ?? null, review, JSON.stringify(status.refundRef ?? {})],
       );
       if (!row) return null;
+      if (status.receipt) await storeReceipt(tx, payment.id, status.receipt);
       // Fully paid → the bill closes itself.
       await tx.query(
         `UPDATE bills SET status = 'paid', closed_at = now() WHERE id = $1 AND status = 'open'
@@ -346,7 +359,7 @@ export async function releaseStaleCheckouts(
   billId?: string,
 ): Promise<number> {
   const stale = await db.query<PaymentRow>(
-    `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at FROM payments
+    `SELECT ${PAYMENT_COLUMNS} FROM payments
      WHERE status = 'pending' AND created_at < now() - make_interval(mins => ${RESERVATION_MINUTES})
        ${billId ? 'AND bill_id = $1' : ''} ORDER BY created_at LIMIT 50`,
     billId ? [billId] : [],
@@ -395,6 +408,8 @@ export async function handleNotification(
     // The notification matched this payment's secret: keep its refund handles if we lack them.
     await db.query("UPDATE payments SET provider_ref = $2::jsonb || provider_ref WHERE id = $1 AND status = 'paid'", [payment.id, JSON.stringify(n.refundRef)]);
   }
+  // A signed outcome can carry the receipt even when the payment was already confirmed another way.
+  if (outcome === 'paid' && n.signedStatus?.receipt) await storeReceipt(db, payment.id, n.signedStatus.receipt);
   if (outcome === 'paid' && provider.acknowledge) {
     try {
       await provider.acknowledge(payment.provider_ref, n);
@@ -406,3 +421,34 @@ export async function handleNotification(
   return outcome;
 }
 
+
+/**
+ * A provider's separate receipt callback (Grow's invoiceNotifyUrl). It is unsigned, so it counts only
+ * when the URL's per-payment key matches (constant time), the body matches the stored identifiers,
+ * and the provider's parser accepted the link. Returns what happened, for the event log.
+ */
+export async function handleReceipt(
+  db: SqlClient,
+  provider: PaymentProvider,
+  paymentId: string,
+  key: string,
+  body: unknown,
+): Promise<'stored' | 'duplicate' | 'ignored'> {
+  const payment = await loadPayment(db, paymentId);
+  const stored = payment?.provider === provider.id ? payment.provider_ref.receiptKey : undefined;
+  const a = Buffer.from(stored ?? '');
+  const b = Buffer.from(key);
+  const parsed = provider.parseReceipt?.(body) ?? null;
+  // Every identifier we hold must match, and at least one must be there to compare.
+  const known = parsed && payment ? Object.entries(parsed.match).filter(([k]) => payment.provider_ref[k] !== undefined) : [];
+  const ok =
+    a.length > 0 && a.length === b.length && timingSafeEqual(a, b) && known.length > 0 &&
+    known.every(([k, v]) => payment!.provider_ref[k] === v);
+  if (!ok) {
+    await event(db, payment && stored ? payment.id : null, provider.id, 'receipt', 'no_match');
+    return 'ignored';
+  }
+  const fresh = await storeReceipt(db, payment!.id, parsed!.receipt);
+  await event(db, payment!.id, provider.id, 'receipt', fresh ? 'stored' : 'duplicate');
+  return fresh ? 'stored' : 'duplicate';
+}

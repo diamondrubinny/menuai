@@ -22,6 +22,20 @@ export interface Payer {
   phone: string;
 }
 
+/** The business's receipt / tax document, issued by the provider's invoice module (never by MenuAI). */
+export interface Receipt {
+  number: string | null;
+  /** https link to the document at the provider or its invoice company. */
+  url: string;
+}
+
+/** A receipt notification that is not part of the payment notification (Grow's invoiceNotifyUrl). Untrusted. */
+export interface ReceiptNotification {
+  receipt: Receipt;
+  /** Must equal the stored identifiers of the payment it claims to be about. */
+  match: ProviderRef;
+}
+
 export interface SessionRequest {
   paymentId: string;
   amountAgorot: number;
@@ -31,6 +45,8 @@ export interface SessionRequest {
   successUrl: string;
   cancelUrl: string;
   notifyUrl: string;
+  /** Where the provider posts the receipt once issued, for providers with a separate receipt callback. */
+  receiptNotifyUrl?: string;
   locale: string;
 }
 
@@ -47,6 +63,8 @@ export interface VerifiedStatus {
   transactionRef?: string;
   /** The provider's handles needed to refund this charge later (stored with the payment; never card data). */
   refundRef?: ProviderRef;
+  /** The receipt, when the provider reports it together with the outcome (only from signed sources). */
+  receipt?: Receipt;
 }
 
 export interface Notification {
@@ -114,6 +132,10 @@ export interface PaymentProvider {
   refund?(ref: ProviderRef, req: RefundRequest): Promise<RefundResult>;
   /** Whether the stored identifiers include what `refund` needs (checked before anything is recorded). */
   refundable?(ref: ProviderRef): boolean;
+  /** True when the provider posts receipts to `receiptNotifyUrl` (a separate, unsigned callback). */
+  readonly receiptCallback?: boolean;
+  /** Reads a receipt callback. Null when it is not a well-formed receipt from this provider. */
+  parseReceipt?(body: unknown): ReceiptNotification | null;
 }
 
 export class ProviderError extends Error {

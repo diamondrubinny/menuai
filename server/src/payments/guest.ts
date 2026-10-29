@@ -12,12 +12,14 @@ import { decimalToAgorot, remainingAgorot, shareChoiceSchema, tipChoiceSchema, t
 import { demoProviderPage, guestCsp, pickLocale, resultPage, tableNotFoundPage, tablePage, type GuestErrorCode, type GuestLocale } from './pages';
 import { PROVIDER_IDS, ProviderError, type Payer, type ProviderRef } from './providers/types';
 import {
-  activeProvider, configuredProvider, handleNotification, loadPayment, openBillForTable, startCheckout, tableByToken, totalsOf, verifyPayment,
+  activeProvider, configuredProvider, handleNotification, handleReceipt, loadPayment, openBillForTable, startCheckout, tableByToken, totalsOf, verifyPayment,
   type GuestTable,
 } from './service';
 
 /** Provider notifications arrive on this route (exempt from the browser Origin check in app.ts). */
 export const NOTIFY_ROUTE = '/api/payments/notify/:provider';
+/** A provider's separate receipt callback; the last segment is a per-payment random key (redacted from logs). */
+export const RECEIPT_ROUTE = '/api/payments/receipt/:provider/:paymentId/:key';
 
 /** Guests wait this long on "confirming…" before the page says it is taking longer than usual. */
 const PENDING_PATIENCE_MS = 60_000;
@@ -210,10 +212,11 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
         payer,
         locale,
         description: plainDescription(`${info.restaurant ?? 'Restaurant'} table ${table.label}`),
-        urls: (paymentId) => ({
+        urls: (paymentId, receiptKey) => ({
           successUrl: abs(`/t/${token}/done/${paymentId}?lang=${locale}`),
           cancelUrl: abs(`/t/${token}?lang=${locale}`),
           notifyUrl: abs(`/api/payments/notify/${active.provider.id}`),
+          ...(receiptKey ? { receiptNotifyUrl: abs(`/api/payments/receipt/${active.provider.id}/${paymentId}/${receiptKey}`) } : {}),
         }),
       });
       return reply.status(303).header('cache-control', 'no-store').redirect(result.redirectUrl);
@@ -252,7 +255,10 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
         }
       }
     }
-    if (status === 'paid') return sendHtml(reply, resultPage(locale, back, { kind: 'paid', agorot: payment.share_agorot + payment.tip_agorot }));
+    if (status === 'paid') {
+      const [receipt] = await db.query<{ receipt_url: string | null }>('SELECT receipt_url FROM payments WHERE id = $1', [payment.id]);
+      return sendHtml(reply, resultPage(locale, back, { kind: 'paid', agorot: payment.share_agorot + payment.tip_agorot, receiptUrl: receipt?.receipt_url ?? null }));
+    }
     if (status === 'failed' || status === 'expired') return sendHtml(reply, resultPage(locale, back, { kind: 'failed' }));
     const long = Date.now() - new Date(payment.created_at).getTime() > PENDING_PATIENCE_MS;
     return sendHtml(reply, resultPage(locale, back, { kind: 'pending', long }));
@@ -280,6 +286,18 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
       req.log.warn({ provider: providerId, reason: err.message }, 'payment status check failed; provider will retry');
       return reply.status(503).send({ error: 'provider_unavailable' });
     }
+  });
+
+  // Receipt callbacks (Grow's invoiceNotifyUrl). No session, no Origin, no signature: authenticity comes
+  // from the per-payment key in the URL plus the stored identifiers (see handleReceipt).
+  app.post(RECEIPT_ROUTE, { config: { rateLimit: { max: 120, timeWindow: '1 minute' } }, logLevel: 'warn' }, async (req, reply) => {
+    const { provider: providerId, paymentId, key } = req.params as { provider: string; paymentId: string; key: string };
+    if (!(PROVIDER_IDS as readonly string[]).includes(providerId) || !/^[0-9a-f]{32}$/.test(key)) return reply.status(404).send({ error: 'not_found' });
+    const active = await configuredProvider(db, config, app.deps.paymentHttp);
+    if (!active || active.provider.id !== providerId || !active.provider.parseReceipt) return reply.send({ ok: true });
+    await handleReceipt(db, active.provider, paymentId, key, req.body);
+    // The same answer either way: nothing to learn by probing.
+    return reply.send({ ok: true });
   });
 
   // --- demo provider (development only; never in production) --------------------------------------

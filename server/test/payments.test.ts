@@ -87,6 +87,7 @@ describe('config', () => {
     expect(safeUrl('/t/AbCdEfGhIjKlMnOpQrStUv/done/1?lang=he')).toBe('/t/[table]/done/1?[redacted]');
     expect(safeUrl('/t/AbCdEfGhIjKlMnOpQrStUv')).toBe('/t/[table]');
     expect(safeUrl('/m/lumiere')).toBe('/m/lumiere');
+    expect(safeUrl(`/api/payments/receipt/grow/${'1'.repeat(36)}/${'a'.repeat(32)}`)).toBe('/api/payments/receipt/grow/[redacted]');
   });
   it('sends providers plain descriptions', () => {
     expect(plainDescription('Café <Lumière> table #7!')).toBe('Café Lumière table 7');
@@ -474,7 +475,7 @@ describe('pay at the table', () => {
     expect(res.headers['content-disposition']).toBe(`attachment; filename="menuai-payments-${yesterday}-to-${tomorrow}.csv"`);
     const [header, row] = res.body.replace(/^\uFEFF/, '').trim().split('\r\n');
     expect(res.body.startsWith('\uFEFF')).toBe(true);
-    expect(header).toBe('"paid_at","table","amount","tip","total","refunded","provider","mode","reference","review","review_note"');
+    expect(header).toBe('"paid_at","table","amount","tip","total","refunded","provider","mode","reference","receipt","review","review_note"');
     expect(row).toContain(`"'=HYPERLINK(""https://evil.example"",""7"")"`);
     expect(row).toContain('"50.00","0.00","50.00","0.00","fake","test"');
     expect(today).toBeTruthy();

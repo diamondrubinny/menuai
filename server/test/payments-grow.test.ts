@@ -181,6 +181,8 @@ describe('Grow (Meshulam) provider', () => {
       'pageField[fullName]': 'ישראל ישראלי', 'pageField[phone]': '0501234567', cField1: paymentId,
       notifyUrl: 'http://localhost:5173/api/payments/notify/grow',
     });
+    // Receipts come to a per-payment address with a random key (Grow's receipt callback is unsigned).
+    expect(sent.invoiceNotifyUrl).toMatch(new RegExp(`^http://localhost:5173/api/payments/receipt/grow/${paymentId}/[0-9a-f]{32}$`));
     expect(sent.successUrl).toBe(`http://localhost:5173${path}/done/${paymentId}?lang=he`);
     expect(sent.description).toMatch(/^[\p{L}\p{N} ]+$/u);
     // The payer's details went to Grow, and nowhere into our database.
@@ -218,7 +220,7 @@ describe('Grow (Meshulam) provider', () => {
     const [row] = await db.query<{ provider_txn: string; provider_ref: Record<string, string> }>('SELECT provider_txn, provider_ref FROM payments WHERE id = $1', [paymentId]);
     expect(row!.provider_txn).toBe('0289199');
     // Only Grow's identifiers are kept: the process, and what a refund needs (never payer or card details).
-    expect(Object.keys(row!.provider_ref).sort()).toEqual(['amount', 'processId', 'processToken', 'transactionId', 'transactionToken']);
+    expect(Object.keys(row!.provider_ref).sort()).toEqual(['amount', 'processId', 'processToken', 'receiptKey', 'transactionId', 'transactionToken']);
     // Grow resends the update: still paid once, approved again.
     expect((await notify(update(paymentId))).json()).toMatchObject({ outcome: 'paid' });
     expect(await paidAgorot()).toBe(28450);
@@ -329,6 +331,67 @@ describe('Grow (Meshulam) provider', () => {
       await db.query("UPDATE payments SET provider_ref = provider_ref - 'transactionToken' WHERE id = $1", [id]);
       expect((await refund(id, 28450)).json()).toEqual({ error: 'refund_reference_missing' });
       expect(await db.query('SELECT 1 FROM payment_refunds')).toHaveLength(0);
+    });
+  });
+
+  describe('receipts', () => {
+    async function paidWithReceiptUrl() {
+      const path = await ready(28450);
+      const paymentId = await checkout(path, { share: 'full' });
+      expect((await notify(update(paymentId))).json()).toMatchObject({ outcome: 'paid' });
+      const url = grow.state.calls.find((c) => c.method === 'createPaymentProcess')!.fields.invoiceNotifyUrl!;
+      return { path, paymentId, receiptPath: new URL(url).pathname };
+    }
+    const doc = 'https://meshulam.co.il/s/9aaa8395-1111-bd6b-2df2-2d41354814b1';
+    const json = (url: string, body: unknown) => app.inject({ method: 'POST', url, payload: body as object, headers: { 'content-type': 'application/json' } });
+    const receipt = async (id: string) => (await db.query<{ receipt_number: string | null; receipt_url: string | null }>('SELECT receipt_number, receipt_url FROM payments WHERE id = $1', [id]))[0]!;
+
+    it('keeps the receipt Grow posts to the payment\'s own address, and shows it to the guest and staff', async () => {
+      const { path, paymentId, receiptPath } = await paidWithReceiptUrl();
+      // No Origin, no cookie: a server-to-server call, like the payment notification.
+      const res = await json(receiptPath, [{ transactionId: '145111110', processId: '5001', invoiceNumber: '4111', invoiceUrl: doc }]);
+      expect(res.statusCode).toBe(200);
+      expect(await receipt(paymentId)).toEqual({ receipt_number: '4111', receipt_url: doc });
+      const done = await app.inject({ method: 'GET', url: `${path}/done/${paymentId}` });
+      expect(done.body).toContain(`<a class="btn" href="${doc}" target="_blank" rel="noopener noreferrer">🧾 לקבלה`);
+      const bills = (await call('GET', '/api/payments/bills?view=recent')).json().bills as { payments: { receiptNumber: string; receiptUrl: string }[] }[];
+      expect(bills[0]!.payments[0]).toMatchObject({ receiptNumber: '4111', receiptUrl: doc });
+      // The first receipt stays; a later one can't replace it.
+      await json(receiptPath, { transactionId: '145111110', processId: '5001', invoiceNumber: '9999', invoiceUrl: `${doc}x` });
+      expect((await receipt(paymentId)).receipt_number).toBe('4111');
+      expect(await db.query("SELECT outcome FROM payment_events WHERE kind = 'receipt' ORDER BY id")).toEqual([{ outcome: 'stored' }, { outcome: 'duplicate' }]);
+    });
+
+    it('accepts form fields too (the format is not documented)', async () => {
+      const { paymentId, receiptPath } = await paidWithReceiptUrl();
+      const res = await app.inject({
+        method: 'POST', url: receiptPath, headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        payload: new URLSearchParams({ 'data[transactionId]': '145111110', 'data[processId]': '5001', 'data[invoiceNumber]': '4112', 'data[invoiceUrl]': doc }).toString(),
+      });
+      expect(res.statusCode).toBe(200);
+      expect((await receipt(paymentId)).receipt_number).toBe('4112');
+    });
+
+    it('ignores receipts with a wrong key, another process or transaction, or a link outside Grow', async () => {
+      const { paymentId, receiptPath } = await paidWithReceiptUrl();
+      const wrongKey = receiptPath.replace(/[0-9a-f]{32}$/, '0'.repeat(32));
+      const good = { transactionId: '145111110', processId: '5001', invoiceNumber: '1', invoiceUrl: doc };
+      for (const [url, body] of [
+        [wrongKey, good],
+        [receiptPath, { ...good, processId: '5002' }],
+        [receiptPath, { ...good, transactionId: '999' }],
+        [receiptPath, { ...good, invoiceUrl: 'https://evil.example/s/1' }],
+        [receiptPath, { ...good, invoiceUrl: 'http://meshulam.co.il/s/1' }],
+        [receiptPath, { ...good, invoiceUrl: 'javascript:alert(1)' }],
+        [receiptPath, { invoiceUrl: doc }],
+        [receiptPath.replace(paymentId, '00000000-0000-4000-8000-000000000000'), good],
+      ] as const) {
+        const res = await json(url, body);
+        expect(res.statusCode).toBe(200);
+        expect(res.json()).toEqual({ ok: true });
+      }
+      expect((await json(receiptPath.replace(/[0-9a-f]{32}$/, 'nothex'), good)).statusCode).toBe(404);
+      expect(await receipt(paymentId)).toEqual({ receipt_number: null, receipt_url: null });
     });
   });
 });

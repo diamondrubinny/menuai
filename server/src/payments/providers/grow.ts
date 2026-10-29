@@ -18,6 +18,10 @@
  *      transactionToken (kept from step 3/4). Grow's rules: at most 2 refunds per charge through the
  *      API, and on the day of the charge only the whole amount (a cancellation). The refund response
  *      layout is not published: only Grow's `status: 1` counts as accepted.
+ *   6. Receipts: when the business has Grow's invoice module, Grow posts `transactionId`, `processId`,
+ *      `invoiceNumber` and `invoiceUrl` to invoiceNotifyUrl. That callback is unsigned and its format is
+ *      not documented, so the URL carries a per-payment random key (checked by the route), the body
+ *      must match the stored process, and the link must be https on Grow's own hosts.
  *
  * Grow's docs do not publish the getPaymentProcessInfo response layout, so it is parsed
  * conservatively: anything not clearly "paid (statusCode 2) for the exact amount" stays pending.
@@ -27,7 +31,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { agorotToDecimal, decimalToAgorot } from '../money';
 import {
   ProviderError, type Notification, type PaymentMode, type PaymentProvider, type ProviderRef, type RefundRequest, type RefundResult, type Session,
-  type SessionRequest, type VerifiedStatus,
+  type ReceiptNotification, type SessionRequest, type VerifiedStatus,
 } from './types';
 
 export type Http = typeof fetch;
@@ -137,6 +141,7 @@ export function growProvider(credentials: GrowCredentials, mode: PaymentMode, ht
         'pageField[phone]': req.payer.phone,
         // Echoed back in the server update: tells us which payment it is about (still verified).
         cField1: req.paymentId,
+        ...(req.receiptNotifyUrl ? { invoiceNotifyUrl: req.receiptNotifyUrl } : {}),
       });
       const data = isObj(json.data) ? json.data : {};
       const url = str(data.url);
@@ -203,6 +208,32 @@ export function growProvider(credentials: GrowCredentials, mode: PaymentMode, ht
     async acknowledge(_ref: ProviderRef, n: Notification): Promise<void> {
       // Echo back exactly what Grow sent (it is not stored anywhere on our side).
       await call('approveTransaction', n.fields);
+    },
+
+    receiptCallback: true,
+
+    parseReceipt(body: unknown): ReceiptNotification | null {
+      // Undocumented format: an object or a one-element array, JSON or form fields (flat or data[...]).
+      let src: unknown = Array.isArray(body) ? body[0] : body;
+      if (isObj(src) && Object.keys(src).some((k) => k.includes('['))) {
+        src = unbracket(Object.entries(src).filter((e): e is [string, string] => typeof e[1] === 'string'));
+      }
+      if (isObj(src) && isObj(src.data)) src = src.data;
+      if (!isObj(src)) return null;
+      const processId = str(src.processId);
+      const transactionId = str(src.transactionId);
+      const link = str(src.invoiceUrl);
+      if (!processId || !link) return null;
+      let url: URL;
+      try {
+        url = new URL(link);
+      } catch {
+        return null;
+      }
+      // Only Grow's own document links: never send a guest to an address an attacker could choose.
+      if (url.protocol !== 'https:' || !CHECKOUT_HOST.test(url.hostname) || url.toString().length > 500) return null;
+      const number = str(src.invoiceNumber)?.replace(/[^\w./-]/g, '').slice(0, 60) || null;
+      return { receipt: { number, url: url.toString() }, match: { processId, ...(transactionId ? { transactionId } : {}) } };
     },
 
     refundPolicy: { maxRefunds: 2, partialSameDay: false },
