@@ -14,6 +14,10 @@
  *      with getPaymentProcessInfo (server → Grow) before anything is marked paid.
  *   4. approveTransaction with the fields received in the update (required for every successful
  *      transaction; Grow retries the update for about an hour until it gets one).
+ *   5. Refunds (owner, from the staff screen): refundTransaction with the charge's transactionId and
+ *      transactionToken (kept from step 3/4). Grow's rules: at most 2 refunds per charge through the
+ *      API, and on the day of the charge only the whole amount (a cancellation). The refund response
+ *      layout is not published: only Grow's `status: 1` counts as accepted.
  *
  * Grow's docs do not publish the getPaymentProcessInfo response layout, so it is parsed
  * conservatively: anything not clearly "paid (statusCode 2) for the exact amount" stays pending.
@@ -21,7 +25,10 @@
  */
 import { timingSafeEqual } from 'node:crypto';
 import { agorotToDecimal, decimalToAgorot } from '../money';
-import { ProviderError, type Notification, type PaymentMode, type PaymentProvider, type ProviderRef, type Session, type SessionRequest, type VerifiedStatus } from './types';
+import {
+  ProviderError, type Notification, type PaymentMode, type PaymentProvider, type ProviderRef, type RefundRequest, type RefundResult, type Session,
+  type SessionRequest, type VerifiedStatus,
+} from './types';
 
 export type Http = typeof fetch;
 
@@ -53,6 +60,13 @@ export interface GrowCredentials {
 type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined);
+
+/** What refundTransaction needs, when both identifiers are present. */
+function refundHandles(src: Record<string, unknown>): ProviderRef | undefined {
+  const transactionId = str(src.transactionId)?.slice(0, 100);
+  const transactionToken = str(src.transactionToken)?.slice(0, 200);
+  return transactionId && transactionToken ? { transactionId, transactionToken } : undefined;
+}
 
 function sameSecret(a: string | undefined, b: string | undefined): boolean {
   if (!a || !b) return false;
@@ -153,7 +167,7 @@ export function growProvider(credentials: GrowCredentials, mode: PaymentMode, ht
       }
       if (!fields.processToken || !fields.processId) return null;
       const custom = isObj(data.customFields) ? data.customFields : {};
-      return { paymentId: str(custom.cField1), fields };
+      return { paymentId: str(custom.cField1), fields, refundRef: refundHandles(fields) };
     },
 
     matches(ref: ProviderRef, n: Notification): boolean {
@@ -178,12 +192,35 @@ export function growProvider(credentials: GrowCredentials, mode: PaymentMode, ht
       );
       if (!paid) return { status: 'pending' };
       const amount = decimalToAgorot(paid.sum);
-      return { status: 'paid', amountAgorot: amount ?? undefined, transactionRef: str(paid.asmachta) ?? str(paid.transactionId) };
+      return {
+        status: 'paid',
+        amountAgorot: amount ?? undefined,
+        transactionRef: str(paid.asmachta) ?? str(paid.transactionId),
+        refundRef: refundHandles(paid),
+      };
     },
 
     async acknowledge(_ref: ProviderRef, n: Notification): Promise<void> {
       // Echo back exactly what Grow sent (it is not stored anywhere on our side).
       await call('approveTransaction', n.fields);
+    },
+
+    refundPolicy: { maxRefunds: 2, partialSameDay: false },
+
+    refundable(ref: ProviderRef): boolean {
+      return Boolean(ref.transactionId && ref.transactionToken);
+    },
+
+    async refund(ref: ProviderRef, req: RefundRequest): Promise<RefundResult> {
+      if (!ref.transactionId || !ref.transactionToken) throw new ProviderError('grow refundTransaction: missing reference', false);
+      // Throws on anything but Grow's `status: 1` (refused → not retryable; transport errors → outcome unknown).
+      await call('refundTransaction', {
+        userId: credentials.userId,
+        transactionId: ref.transactionId,
+        transactionToken: ref.transactionToken,
+        refundSum: agorotToDecimal(req.amountAgorot),
+      });
+      return {};
     },
   };
 }

@@ -21,6 +21,7 @@ import { refreshPublishedPages } from './publish/refresh';
 import { uploadRoutes } from './uploads/routes';
 import { paymentRoutes } from './payments/routes';
 import { paymentReportRoutes } from './payments/report';
+import { paymentRefundRoutes } from './payments/refunds';
 import { guestPaymentRoutes, NOTIFY_ROUTE } from './payments/guest';
 import { applyRetention } from './maintenance/retention';
 import { createMediaStore, type MediaStore } from './uploads/store';
@@ -143,6 +144,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(uploadRoutes, { media, scanner });
   await app.register(paymentRoutes);
   await app.register(paymentReportRoutes);
+  await app.register(paymentRefundRoutes);
   await app.register(guestPaymentRoutes);
 
   // After an update, pages published by an older version are re-rendered before the first request

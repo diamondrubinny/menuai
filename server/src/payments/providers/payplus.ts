@@ -17,13 +17,15 @@
  *   3. Without a callback (the guest returning first, stale-checkout checks) the status is asked with
  *      PaymentPages/ipn. Its response layout is not published, so it is parsed conservatively: anything
  *      not clearly "approved (status_code 000) for the exact amount" stays pending.
+ *   4. Refunds (owner, from the staff screen): Transactions/RefundByTransactionUID with the charge's
+ *      transaction `uid` (kept from step 2/3) and the amount (at most what was charged).
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { agorotToDecimal, decimalToAgorot } from '../money';
 import { RESERVATION_MINUTES } from '../reservation';
 import {
   ProviderError, type Notification, type NotificationContext, type PaymentMode, type PaymentProvider, type ProviderRef, type Session,
-  type SessionRequest, type VerifiedStatus,
+  type RefundRequest, type RefundResult, type SessionRequest, type VerifiedStatus,
 } from './types';
 import type { Http } from './grow';
 
@@ -73,10 +75,12 @@ function outcomeOf(transaction: Json): VerifiedStatus {
   const code = str(transaction.status_code);
   if (code !== APPROVED) return { status: code ? 'failed' : 'pending' };
   const amount = decimalToAgorot(transaction.amount);
+  const uid = str(transaction.uid)?.slice(0, 100);
   return {
     status: 'paid',
     amountAgorot: amount ?? undefined,
     transactionRef: str(transaction.approval_number) ?? str(transaction.number) ?? str(transaction.uid),
+    refundRef: uid ? { transactionUid: uid } : undefined,
   };
 }
 
@@ -192,6 +196,26 @@ export function payplusProvider(credentials: PayPlusCredentials, mode: PaymentMo
           (str(c.payment_request_uid) === undefined || str(c.payment_request_uid) === ref.pageRequestUid),
       );
       return approved ? outcomeOf(approved) : { status: 'pending' };
+    },
+
+    refundPolicy: { partialSameDay: true },
+
+    refundable(ref: ProviderRef): boolean {
+      return Boolean(ref.transactionUid);
+    },
+
+    async refund(ref: ProviderRef, req: RefundRequest): Promise<RefundResult> {
+      if (!ref.transactionUid) throw new ProviderError('payplus refund: missing reference', false);
+      // 4xx and `results.status` other than success → refused; network errors and 5xx → outcome unknown.
+      const json = await call('Transactions/RefundByTransactionUID', {
+        transaction_uid: ref.transactionUid,
+        amount: Number(agorotToDecimal(req.amountAgorot)),
+      });
+      const data = isObj(json.data) ? json.data : {};
+      const transaction = isObj(data.transaction) ? data.transaction : {};
+      const code = str(transaction.status_code);
+      if (code !== undefined && code !== APPROVED) throw new ProviderError(`payplus refund: status ${code.slice(0, 10)}`, false);
+      return { refundRef: str(transaction.approval_number) ?? str(transaction.number) ?? str(transaction.uid) };
     },
   };
 }

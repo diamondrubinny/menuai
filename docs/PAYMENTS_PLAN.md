@@ -94,9 +94,26 @@ A `fake` provider is used in tests and the demo (no real money).
 | 3a ✅ | Adapter interface + `fake` provider, tables/bills/payments schema, staff screen, `/pay` page with tip/split, webhook pipeline, tests |
 | 3b ✅ (code; sandbox run pending) | First real Israeli provider (sandbox) end to end |
 | 3c ✅ PayPlus (code; sandbox run pending) | Second provider (PayPlus, signed callbacks). Stripe: Israeli business onboarding unclear, not built; PayPal: on request |
-| 3d (in progress) | **Now:** resolving flagged payments (owner marks a late/over-payment as refunded or reviewed, with a note; audited); daily report by business day (Israel time) and CSV export for accounting and tip sharing (owner). **Later, with provider docs/credentials:** refunds through the provider API (until then: refund in the provider's dashboard, then mark it resolved here); receipts/tax invoices via the provider's invoice module or an accounting system (⚖️ accountant). |
+| 3d (in progress) | ✅ Resolving flagged payments, daily report by business day, CSV export (owner). ✅ **Refunds through the provider API** (owner; see §8). **Later:** receipts/tax invoices via the provider's invoice module or an accounting system (⚖️ accountant). |
 | 3e (optional) | Order-and-pay cart (flow B) |
 
 ## 7. Out of scope (MVP)
 
 Storing cards, recurring billing, cash handling, POS sync, kitchen display system.
+
+## 8. Refunds through the provider API (Phase 3d)
+
+Sources (checked 2026-10-29, *verify again in the sandbox run*):
+- Grow `refundTransaction` (multipart: `userId`, `transactionId`, `transactionToken`, `refundSum`, optional `pageCode`): https://developers.grow.business/reference/refund-transaction. Rules (https://developers.grow.business/reference/refund-overview): a same-day refund is a cancellation of the whole transaction; at most 2 refunds per transaction through the API; no refund without a balance; the response layout is not published.
+- PayPlus `Transactions/RefundByTransactionUID` (JSON: `transaction_uid`, `amount`; `api-key` + `secret-key` headers): https://docs.payplus.co.il/reference/post_transactions-refundbytransactionuid.
+
+Design:
+- **Owner only**, rate limited, audited. Amount in agorot, at most what was charged (share + tip) minus refunds that succeeded.
+- **One refund in flight per payment**: the payment row is locked while the request is checked, and a partial unique index allows one `pending`/`unknown` refund per payment.
+- The provider call happens **outside** any lock. Outcome: `succeeded`, `failed` (the provider said no; its error code is kept, nothing else), or **`unknown`** (network error/timeout: the refund may or may not have happened). An `unknown` refund blocks further refunds until the owner checks the provider's dashboard and confirms what happened. **We never retry a refund automatically** (a retry could refund twice).
+- Refunds go through the provider and mode the payment was made with. If the owner switched provider or mode since, the refund is refused: refund in the old provider's dashboard and mark the payment handled.
+- Provider handles needed for a refund (Grow `transactionId` + `transactionToken`, PayPlus transaction `uid`) are stored with the payment's provider identifiers when the payment is confirmed. They are not card data.
+- Grow limits are enforced before calling: max 2 API refunds; same business day → full amount only.
+- A refund does not change the bill (it is an adjustment after payment). A flagged payment that is fully refunded is marked handled automatically.
+- Report: refunded amounts per business day (by refund date); CSV: refunded amount per payment.
+- Live refunds are covered by the same sandbox run that unlocks live mode for a provider.

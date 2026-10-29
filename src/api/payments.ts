@@ -36,6 +36,26 @@ export interface DiningTable {
   openBillId: string | null;
 }
 
+export interface Refund {
+  id: string;
+  amountAgorot: number;
+  status: 'pending' | 'succeeded' | 'failed' | 'unknown';
+  /** The outcome must be checked in the provider's dashboard and confirmed here. */
+  needsConfirmation: boolean;
+  refundRef: string | null;
+  note: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+/** Which payments can be refunded from the app right now (null: use the provider's dashboard). */
+export interface RefundChannel {
+  provider: ProviderId;
+  mode: PaymentMode;
+  maxRefunds?: number;
+  partialSameDay: boolean;
+}
+
 export interface BillPayment {
   id: string;
   shareAgorot: number;
@@ -50,6 +70,7 @@ export interface BillPayment {
   transactionRef: string | null;
   createdAt: string;
   paidAt: string | null;
+  refunds: Refund[];
 }
 
 export interface Bill {
@@ -79,7 +100,7 @@ export const updateTable = (id: string, body: Partial<Pick<DiningTable, 'label' 
   api<{ ok: true }>(`/payments/tables/${id}`, { method: 'PATCH', body });
 export const rotateTable = (id: string) => api<{ url: string }>(`/payments/tables/${id}/rotate`, { method: 'POST' });
 
-export const listBills = (view: 'open' | 'recent') => api<{ bills: Bill[] }>(`/payments/bills?view=${view}`);
+export const listBills = (view: 'open' | 'recent') => api<{ bills: Bill[]; refunds: RefundChannel | null }>(`/payments/bills?view=${view}`);
 export const openBill = (body: { tableId: string; amountAgorot: number; note: string }) => api<{ id: string }>('/payments/bills', { method: 'POST', body });
 export const updateBill = (id: string, body: { amountAgorot?: number; note?: string }) => api<{ ok: true }>(`/payments/bills/${id}`, { method: 'PATCH', body });
 export const closeBill = (id: string) => api<{ ok: true }>(`/payments/bills/${id}/close`, { method: 'POST' });
@@ -92,6 +113,7 @@ export interface ReportDay {
   payments: number;
   collectedAgorot: number;
   tipsAgorot: number;
+  refundedAgorot: number;
   openReviews: number;
 }
 export const getReport = (from: string, to: string) =>
@@ -100,6 +122,19 @@ export const getReport = (from: string, to: string) =>
 export const reportCsvUrl = (from: string, to: string) => `/api/payments/report.csv?from=${from}&to=${to}`;
 export const resolveReview = (paymentId: string, note: string) =>
   api<{ ok: true }>(`/payments/payments/${paymentId}/resolve`, { method: 'POST', body: { note } });
+
+/** Owner only. The server checks the amount, the provider's limits and that no other refund is in flight. */
+export const refundPayment = (paymentId: string, body: { amountAgorot: number; note: string }) =>
+  api<{ refundId: string; status: 'succeeded' | 'failed' | 'unknown'; refundRef: string | null }>(`/payments/payments/${paymentId}/refund`, { method: 'POST', body });
+/** Owner only: records what the provider's dashboard shows for a refund whose outcome was unknown. */
+export const confirmRefund = (refundId: string, outcome: 'succeeded' | 'failed') =>
+  api<{ ok: true }>(`/payments/refunds/${refundId}/confirm`, { method: 'POST', body: { outcome } });
+
+/** What can still be refunded on a payment (charged minus refunds that went through or may have). */
+export function refundableAgorot(p: Pick<BillPayment, 'shareAgorot' | 'tipAgorot' | 'refunds'>): number {
+  const taken = p.refunds.filter((r) => r.status !== 'failed').reduce((a, r) => a + r.amountAgorot, 0);
+  return Math.max(0, p.shareAgorot + p.tipAgorot - taken);
+}
 
 /** "123.4" / "123,40" → 12340 agorot, or null when it is not a valid amount. */
 export function shekelsToAgorot(input: string): number | null {

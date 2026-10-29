@@ -209,4 +209,28 @@ ALTER TABLE payment_settings DROP CONSTRAINT IF EXISTS payment_settings_provider
 ALTER TABLE payment_settings ADD CONSTRAINT payment_settings_provider_check CHECK (provider IN ('fake', 'grow', 'payplus'));
 `,
   },
+  {
+    id: '0007_payment_refunds',
+    sql: `
+-- Refunds made through the provider's API (owner only). No card or payer data.
+CREATE TABLE payment_refunds (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id uuid NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+  amount_agorot integer NOT NULL CHECK (amount_agorot > 0),
+  -- unknown = the provider call failed in transit: the owner checks the provider's dashboard and confirms.
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'succeeded', 'failed', 'unknown')),
+  provider_refund_ref text CHECK (length(provider_refund_ref) <= 100),
+  error_code text CHECK (length(error_code) <= 80),
+  note text NOT NULL DEFAULT '' CHECK (length(note) <= 200),
+  requested_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz
+);
+CREATE INDEX payment_refunds_payment ON payment_refunds (payment_id);
+CREATE INDEX payment_refunds_completed ON payment_refunds (completed_at) WHERE status = 'succeeded';
+-- At most one refund in flight per payment: a second one could refund twice.
+CREATE UNIQUE INDEX payment_refunds_one_open ON payment_refunds (payment_id) WHERE status IN ('pending', 'unknown');
+`,
+  },
 ];

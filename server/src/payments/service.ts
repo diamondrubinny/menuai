@@ -307,9 +307,11 @@ export async function verifyPayment(
       // Money was taken either way: record it as paid, and flag it when the bill can't take it.
       const review: ReviewReason | null =
         bill!.status !== 'open' ? 'bill_not_open' : bill!.paid_other + payment.share_agorot > bill!.amount_agorot ? 'overpaid' : null;
+      // Refund handles join the stored identifiers (the ones we already have win).
       const [row] = await tx.query<{ id: string }>(
-        "UPDATE payments SET status = 'paid', paid_at = now(), provider_txn = $2, review_reason = $3 WHERE id = $1 AND status <> 'paid' RETURNING id",
-        [payment.id, status.transactionRef?.slice(0, 100) ?? null, review],
+        `UPDATE payments SET status = 'paid', paid_at = now(), provider_txn = $2, review_reason = $3, provider_ref = $4::jsonb || provider_ref
+         WHERE id = $1 AND status <> 'paid' RETURNING id`,
+        [payment.id, status.transactionRef?.slice(0, 100) ?? null, review, JSON.stringify(status.refundRef ?? {})],
       );
       if (!row) return null;
       // Fully paid → the bill closes itself.
@@ -389,6 +391,10 @@ export async function handleNotification(
     return 'ignored';
   }
   const outcome = await verifyPayment(db, provider, payment, 'notify', n.signedStatus);
+  if (outcome === 'paid' && n.refundRef) {
+    // The notification matched this payment's secret: keep its refund handles if we lack them.
+    await db.query("UPDATE payments SET provider_ref = $2::jsonb || provider_ref WHERE id = $1 AND status = 'paid'", [payment.id, JSON.stringify(n.refundRef)]);
+  }
   if (outcome === 'paid' && provider.acknowledge) {
     try {
       await provider.acknowledge(payment.provider_ref, n);

@@ -26,6 +26,8 @@ function fakePayPlus() {
     link: '',
     linkStatus: 'success',
     ipn: null as null | Record<string, unknown>,
+    /** RefundByTransactionUID behaviour: HTTP status and the refund transaction's status_code. */
+    refund: { http: 200, code: '000' },
   };
   state.link = `https://paymentsdev.payplus.co.il/${state.pageRequestUid}`;
   const http: typeof fetch = async (input, init) => {
@@ -42,6 +44,14 @@ function fakePayPlus() {
     }
     if (method === 'PaymentPages/ipn') {
       return state.ipn ? json({ results: { status: 'success', code: 0 }, data: state.ipn }) : json({ results: { status: 'error', code: 404 } }, 404);
+    }
+    if (method === 'Transactions/RefundByTransactionUID') {
+      if (state.refund.http >= 500) return json({}, state.refund.http);
+      if (state.refund.http !== 200) return json({ results: { status: 'error', code: 2 } }, state.refund.http);
+      return json({
+        results: { status: 'success', code: 0, description: 'operation has been success' },
+        data: { transaction: { uid: randomUUID(), number: 'R-77', type: 'refund', status_code: state.refund.code, amount: 0, approval_number: '0099123' } },
+      });
     }
     return new Response('not found', { status: 404 });
   };
@@ -209,5 +219,45 @@ describe('PayPlus provider', () => {
     expect(await paidAgorot()).toBe(10000);
     const ipn = pp.state.calls.find((c) => c.method === 'PaymentPages/ipn')!;
     expect(ipn.body).toEqual({ payment_request_uid: pp.state.pageRequestUid });
+  });
+
+  describe('refunds', () => {
+    async function paid() {
+      const path = await ready(28450);
+      const id = await checkout(path, { share: 'full' });
+      const body = callbackBody(id);
+      expect((await notify(body)).json()).toMatchObject({ outcome: 'paid' });
+      return { id, uid: body.transaction.uid };
+    }
+    const refund = (id: string, amountAgorot: number) => call('POST', `/api/payments/payments/${id}/refund`, { amountAgorot });
+
+    it('refunds by the transaction uid from the signed callback, with both keys, partially and on the same day', async () => {
+      const { id, uid } = await paid();
+      const [row] = await db.query<{ provider_ref: Record<string, string> }>('SELECT provider_ref FROM payments WHERE id = $1', [id]);
+      expect(row!.provider_ref.transactionUid).toBe(uid);
+      expect((await refund(id, 4450)).json()).toMatchObject({ status: 'succeeded', refundRef: '0099123' });
+      const sent = pp.state.calls.at(-1)!;
+      expect(sent.method).toBe('Transactions/RefundByTransactionUID');
+      expect(sent.body).toEqual({ transaction_uid: uid, amount: 44.5 });
+      expect(sent.headers).toMatchObject({ 'api-key': CREDS.apiKey, 'secret-key': CREDS.secretKey });
+      expect((await refund(id, 24001)).json()).toEqual({ error: 'refund_too_large' });
+      expect((await refund(id, 24000)).json()).toMatchObject({ status: 'succeeded' });
+    });
+
+    it('records a declined refund as failed, and a 5xx as unknown', async () => {
+      const { id } = await paid();
+      pp.state.refund = { http: 200, code: '051' };
+      expect((await refund(id, 1000)).json()).toMatchObject({ status: 'failed' });
+      pp.state.refund = { http: 422, code: '000' };
+      expect((await refund(id, 1000)).json()).toMatchObject({ status: 'failed' });
+      pp.state.refund = { http: 502, code: '000' };
+      expect((await refund(id, 1000)).json()).toMatchObject({ status: 'unknown' });
+      const rows = await db.query<{ status: string; error_code: string | null }>('SELECT status, error_code FROM payment_refunds ORDER BY created_at');
+      expect(rows).toEqual([
+        { status: 'failed', error_code: 'payplus refund: status 051' },
+        { status: 'failed', error_code: 'payplus Transactions/RefundByTransactionUID: http 422' },
+        { status: 'unknown', error_code: 'payplus Transactions/RefundByTransactionUID: http 502' },
+      ]);
+    });
   });
 });

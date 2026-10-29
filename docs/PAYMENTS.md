@@ -77,6 +77,8 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Tables (name, code, linked menu) | Showing the right bill | Contract / legitimate interest | DB | Until deleted | — |
 | Bills (amount, staff note, who opened them, times) | Collecting payment, accounting | Contract, legal obligation (accounting) | DB | ⚖️ As tax law requires (typically 7 years); not deleted automatically | — |
 | Payments (share, tip, status, provider reference, times) | Reconciliation, refunds | Contract, legal obligation | DB | As bills | Provider holds the transaction |
+| Provider handles for refunds (Grow transactionId + transactionToken, PayPlus transaction uid; not card data) | Refunding through the provider's API | Contract | DB, with the payment | As bills | Provider |
+| Refunds (amount, status, the provider's refund reference or error code, owner's note, who and when) | Accounting, audit | Contract, legal obligation | DB | As bills | Provider performs the refund |
 | Abandoned checkouts | Releasing reservations | Legitimate interest | DB | Marked expired after 24 h | — |
 | Provider notification log (no names, phones or card data) | Troubleshooting, audit | Legitimate interest | DB | 13 months | — |
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
@@ -114,7 +116,30 @@ On that menu a fixed **💳 Pay the bill** button leads back to the table page. 
 - **Flagged payments:**
   - A payment that arrived after the bill was paid, closed or cancelled shows ⚠️ until the owner refunds it in the provider's dashboard and clicks **Mark as handled**, with a short note.
   - The note and who handled it are kept, and the action is audited.
-  - Refunds through the provider's API come later (Phase 3d), once the provider's refund call is documented and tested.
+  - A flagged payment that is refunded in full from here (see below) is marked handled automatically.
+
+## Refunds (owner)
+
+On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the amount (it starts at what is left to refund) and an optional reason, then confirm.
+
+- **Limits (server-enforced):**
+  - at most what was charged (share + tip), minus refunds that went through;
+  - only through the provider and mode the payment was made with. After switching provider or mode, refund in the old provider's dashboard and mark the payment handled;
+  - **one refund at a time per payment** (row lock + a unique index), so a double click can't refund twice;
+  - Grow's rules: on the day of the payment only the whole amount (it is a cancellation); at most 2 refunds per payment through the API;
+  - owner only, rate limited (10 per minute), every step audited (`payment.refund_requested`, `…_succeeded` / `…_failed` / `…_unknown`, `…_confirmed`).
+- **Outcomes:**
+  - **Refunded:** the provider accepted it. Its reference is shown when it returns one.
+  - **Refused:** the provider said no (e.g. not enough balance). Nothing was refunded; only the error code is kept.
+  - **Unknown:** the connection failed mid-call, so it may or may not have happened. **It is never retried automatically.** The bill stays in the open list until the owner checks the provider's dashboard and clicks **It was refunded** or **It was not refunded**. No new refund is possible on that payment until then. A refund interrupted by a restart shows up the same way after 2 minutes.
+- A refund doesn't reopen the bill: it is an adjustment after payment. If the guest has to pay again, open a new bill.
+- The **report** has a **Refunded** column per business day (the day of the refund, which can differ from the day of the payment). The **CSV** has a `refunded` column per payment.
+- Refund confirmations from the provider (email to the guest, a credit invoice) follow the provider's own settings. ⚖️ Whether a credit document must be issued is a question for the accountant.
+
+| Provider | Call | Source |
+|---|---|---|
+| Grow | `refundTransaction` (multipart: `userId`, `transactionId`, `transactionToken`, `refundSum`, `pageCode`). Only Grow's `status: 1` counts as refunded. The response layout is not published, so no refund reference is read. | Grow docs: Refund Transaction, Refund overview |
+| PayPlus | `Transactions/RefundByTransactionUID` (JSON: `transaction_uid`, `amount`; `api-key` + `secret-key`). `results.status` success, with the refund's `status_code` 000 when present. | PayPlus docs: Refund by transaction UID |
 
 ## Grow: how it works here
 
@@ -146,7 +171,8 @@ On that menu a fixed **💳 Pay the bill** button leads back to the table page. 
    - the bill closes;
    - PayPlus's dashboard shows the transaction.
 4. Try the rejected card **5326-1402-0001-0120**. Nothing is charged, and the guest can try again. Then test a split, a tip, a cancel, and two phones paying at once.
-5. Add `payplus` to `PAYMENTS_LIVE_PROVIDERS`, restart, enter the **production** credentials and switch to **Live**.
+5. Refund part of a test payment, then the rest, from the bills screen. Check that both show as **Refunded** and that PayPlus's dashboard shows them.
+6. Add `payplus` to `PAYMENTS_LIVE_PROVIDERS`, restart, enter the **production** credentials and switch to **Live**.
 
 ## Grow sandbox run (before going live)
 
@@ -163,9 +189,10 @@ Grow sends server updates only to a public HTTPS address (not localhost), so run
    - a tip;
    - cancelling on Grow's page (you return to the table page and nothing is charged);
    - two phones paying the whole bill at once (the second is refused).
-5. Bit, Apple Pay and Google Pay have no sandbox at Grow and charge real money. Test them in live mode with small amounts.
-6. If anything does not match, export `payment_events` for the time of the test (it holds no personal data), and keep the request ids from the server log.
-7. Request Grow's production review. Then:
+5. Refunds: refund a payment made **today** in full (a cancellation). Check that a partial refund of today's payment is refused with a clear message. The next day, refund part of another payment. Check both in Grow's dashboard. If Grow's refund response has a reference field, note it for a follow-up.
+6. Bit, Apple Pay and Google Pay have no sandbox at Grow and charge real money. Test them in live mode with small amounts.
+7. If anything does not match, export `payment_events` for the time of the test (it holds no personal data), and keep the request ids from the server log.
+8. Request Grow's production review. Then:
    - add `grow` to `PAYMENTS_LIVE_PROVIDERS` in `.env` (e.g. `PAYMENTS_LIVE_PROVIDERS=grow`) and restart;
    - enter the **production** identifiers;
    - switch the mode to **Live**.

@@ -45,6 +45,8 @@ export interface VerifiedStatus {
   amountAgorot?: number;
   /** The provider's transaction reference (shown to staff for reconciliation). */
   transactionRef?: string;
+  /** The provider's handles needed to refund this charge later (stored with the payment; never card data). */
+  refundRef?: ProviderRef;
 }
 
 export interface Notification {
@@ -58,12 +60,33 @@ export interface Notification {
    * the stored payment and must carry the exact amount.
    */
   signedStatus?: VerifiedStatus;
+  /** Refund handles carried by a notification that matched the stored payment (see VerifiedStatus.refundRef). */
+  refundRef?: ProviderRef;
 }
 
 /** The raw request, for providers that sign their notifications. */
 export interface NotificationContext {
   rawBody?: string;
   headers: Record<string, string | string[] | undefined>;
+}
+
+export interface RefundRequest {
+  amountAgorot: number;
+  /** Our refund id (for the provider's logs where it takes one). */
+  refundId: string;
+}
+
+export interface RefundResult {
+  /** The provider's reference for the refund, when it returns one. */
+  refundRef?: string;
+}
+
+/** Provider limits checked before a refund is attempted. */
+export interface RefundPolicy {
+  /** Most refunds the provider allows per charge through its API. */
+  maxRefunds?: number;
+  /** Whether a partial refund is possible on the business day of the charge (Grow: no, it is a cancellation). */
+  partialSameDay: boolean;
 }
 
 export interface PaymentProvider {
@@ -80,6 +103,17 @@ export interface PaymentProvider {
   fetchStatus(ref: ProviderRef): Promise<VerifiedStatus>;
   /** Tells the provider the notification was handled, when it requires that (after a verified payment). */
   acknowledge?(ref: ProviderRef, notification: Notification): Promise<void>;
+  /** Refund limits, present when the provider supports refunds through its API. */
+  readonly refundPolicy?: RefundPolicy;
+  /**
+   * Refunds part or all of a confirmed charge. Resolves only when the provider accepted the refund.
+   * Throws ProviderError(retryable = false) when the provider refused it, and a retryable one when
+   * the outcome is unknown (network error, timeout, 5xx): the refund may have happened, so it must
+   * never be retried automatically.
+   */
+  refund?(ref: ProviderRef, req: RefundRequest): Promise<RefundResult>;
+  /** Whether the stored identifiers include what `refund` needs (checked before anything is recorded). */
+  refundable?(ref: ProviderRef): boolean;
 }
 
 export class ProviderError extends Error {

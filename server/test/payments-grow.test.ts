@@ -29,6 +29,8 @@ function fakeGrow() {
     infoSum: null as string | null, // defaults to the requested sum
     approveFails: false,
     down: false,
+    refundStatus: 1,
+    refundDown: false,
   };
   const http: typeof fetch = async (input, init) => {
     if (state.down) throw new TypeError('fetch failed');
@@ -47,6 +49,9 @@ function fakeGrow() {
           : json({ status: 0, err: { id: 701, message: 'פרמטר קוד זיהוי אינו תקין' }, data: '' });
       case 'getPaymentProcessInfo':
         return json({ status: 1, err: '', data: { statusCode: state.infoStatusCode, sum: state.infoSum ?? created?.fields.sum, processId: '5001', asmachta: '0289199', transactionId: '145111110' } });
+      case 'refundTransaction':
+        if (state.refundDown) throw new TypeError('fetch failed');
+        return state.refundStatus === 1 ? json({ status: 1, err: '', data: {} }) : json({ status: 0, err: { id: 811, message: 'אין יתרה' }, data: '' });
       case 'approveTransaction':
         return state.approveFails ? json({ status: 0, err: { id: 722, message: 'x' }, data: '' }) : json({ status: 1, err: '', data: '' });
       default:
@@ -212,7 +217,8 @@ describe('Grow (Meshulam) provider', () => {
     expect((await app.inject({ method: 'GET', url: `${path}/done/${paymentId}?response=success` })).body).toContain('התשלום התקבל');
     const [row] = await db.query<{ provider_txn: string; provider_ref: Record<string, string> }>('SELECT provider_txn, provider_ref FROM payments WHERE id = $1', [paymentId]);
     expect(row!.provider_txn).toBe('0289199');
-    expect(Object.keys(row!.provider_ref).sort()).toEqual(['amount', 'processId', 'processToken']);
+    // Only Grow's identifiers are kept: the process, and what a refund needs (never payer or card details).
+    expect(Object.keys(row!.provider_ref).sort()).toEqual(['amount', 'processId', 'processToken', 'transactionId', 'transactionToken']);
     // Grow resends the update: still paid once, approved again.
     expect((await notify(update(paymentId))).json()).toMatchObject({ outcome: 'paid' });
     expect(await paidAgorot()).toBe(28450);
@@ -271,5 +277,58 @@ describe('Grow (Meshulam) provider', () => {
     expect(({} as Record<string, unknown>).x).toBeUndefined();
     expect(({} as Record<string, unknown>).y).toBeUndefined();
     expect(parsed).toEqual({ data: { a: { b: '3' } } });
+  });
+
+  describe('refunds', () => {
+    async function paid(amountAgorot = 28450) {
+      const path = await ready(amountAgorot);
+      const paymentId = await checkout(path, { share: 'full' });
+      expect((await notify(update(paymentId))).json()).toMatchObject({ outcome: 'paid' });
+      return paymentId;
+    }
+    const refund = (id: string, amountAgorot: number) => call('POST', `/api/payments/payments/${id}/refund`, { amountAgorot });
+    const yesterday = (id: string) => db.query("UPDATE payments SET paid_at = now() - interval '1 day' WHERE id = $1", [id]);
+
+    it('sends Grow exactly what refundTransaction needs, from the stored transaction handles', async () => {
+      const id = await paid();
+      const res = await refund(id, 28450);
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json()).toMatchObject({ status: 'succeeded' });
+      const sent = grow.state.calls.at(-1)!;
+      expect(sent.method).toBe('refundTransaction');
+      expect(sent.fields).toEqual({ pageCode: CREDS.pageCode, userId: CREDS.userId, transactionId: '145111110', transactionToken: 'c68d98d4c3f19b30', refundSum: '284.50' });
+    });
+
+    it('follows Grow\'s rules: the whole amount on the day of the charge, and at most 2 refunds', async () => {
+      const id = await paid(30000);
+      expect((await refund(id, 10000)).json()).toEqual({ error: 'refund_partial_same_day' });
+      await yesterday(id);
+      expect((await refund(id, 10000)).json()).toMatchObject({ status: 'succeeded' });
+      expect((await refund(id, 10000)).json()).toMatchObject({ status: 'succeeded' });
+      expect((await refund(id, 10000)).json()).toEqual({ error: 'refund_limit' });
+      expect(grow.state.calls.filter((c) => c.method === 'refundTransaction')).toHaveLength(2);
+    });
+
+    it('records Grow refusing a refund as failed (code only), and a lost connection as unknown, never retried', async () => {
+      const id = await paid();
+      grow.state.refundStatus = 0;
+      expect((await refund(id, 28450)).json()).toMatchObject({ status: 'failed' });
+      const [failed] = await db.query<{ error_code: string }>("SELECT error_code FROM payment_refunds WHERE status = 'failed'");
+      expect(failed!.error_code).toBe('grow refundTransaction: error 811');
+      grow.state.refundStatus = 1;
+      grow.state.refundDown = true;
+      expect((await refund(id, 28450)).json()).toMatchObject({ status: 'unknown' });
+      grow.state.refundDown = false;
+      // It may have gone through: nothing more until the owner checks Grow's dashboard and confirms.
+      expect((await refund(id, 28450)).json()).toEqual({ error: 'refund_in_progress' });
+      expect(grow.state.calls.filter((c) => c.method === 'refundTransaction')).toHaveLength(2);
+    });
+
+    it('refuses when the transaction handles are missing (e.g. the payment was confirmed without an update)', async () => {
+      const id = await paid();
+      await db.query("UPDATE payments SET provider_ref = provider_ref - 'transactionToken' WHERE id = $1", [id]);
+      expect((await refund(id, 28450)).json()).toEqual({ error: 'refund_reference_missing' });
+      expect(await db.query('SELECT 1 FROM payment_refunds')).toHaveLength(0);
+    });
   });
 });

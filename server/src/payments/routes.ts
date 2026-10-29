@@ -10,6 +10,7 @@ import { audit } from '../auth/service';
 import { badRequest, conflict, HttpError, notFound } from '../errors';
 import { availableProviders, modeAllowed } from './providers';
 import { PROVIDER_IDS } from './providers/types';
+import { REFUND_COLUMNS, refundChannel, refundDto, type RefundRow } from './refunds';
 import { activeProvider, BILL_SELECT, configuredProvider, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
 
 const idSchema = z.uuid();
@@ -217,11 +218,15 @@ export async function paymentRoutes(app: FastifyInstance) {
     const q = z.object({ view: z.enum(['open', 'recent']).default('open') }).safeParse(req.query);
     if (!q.success) throw badRequest();
     // Abandoned checkouts stop showing as "being paid" (checked with the provider first).
-    await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp));
-    // "Open" also lists bills with money that still needs a refund or review, so staff can't miss them.
+    const configuredNow = await configuredProvider(db, config, app.deps.paymentHttp);
+    await releaseStaleCheckouts(db, configuredNow);
+    // "Open" also lists bills with money that still needs a refund or review, or a refund whose outcome
+    // must be confirmed, so staff can't miss them.
     const where =
       q.data.view === 'open'
-        ? `(b.status = 'open' OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.review_resolved_at IS NULL))`
+        ? `(b.status = 'open'
+            OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.review_resolved_at IS NULL)
+            OR EXISTS (SELECT 1 FROM payments r JOIN payment_refunds f ON f.payment_id = r.id WHERE r.bill_id = b.id AND f.status IN ('pending', 'unknown')))`
         : "b.opened_at > now() - interval '2 days'";
     const bills = await db.query<BillRow & { table_label: string }>(
       `SELECT x.*, t.label AS table_label FROM (${BILL_SELECT} WHERE ${where} GROUP BY b.id) x
@@ -235,7 +240,13 @@ export async function paymentRoutes(app: FastifyInstance) {
           [ids],
         )
       : [];
+    const paidIds = payments.filter((p) => p.status === 'paid').map((p) => p.id);
+    const refunds = paidIds.length
+      ? await db.query<RefundRow>(`SELECT ${REFUND_COLUMNS} FROM payment_refunds WHERE payment_id = ANY($1::uuid[]) ORDER BY created_at`, [paidIds])
+      : [];
     return {
+      // Which payments the owner can refund from here (null: refund in the provider's dashboard).
+      refunds: refundChannel(configuredNow),
       bills: bills.map((b) => ({
         ...billDto(b),
         payments: payments
@@ -243,6 +254,7 @@ export async function paymentRoutes(app: FastifyInstance) {
           .map((p) => ({
             id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, reviewResolvedAt: p.review_resolved_at, reviewNote: p.review_note, provider: p.provider,
             mode: p.mode, transactionRef: p.provider_txn, createdAt: p.created_at, paidAt: p.paid_at,
+            refunds: refunds.filter((r) => r.payment_id === p.id).map(refundDto),
           })),
       })),
     };

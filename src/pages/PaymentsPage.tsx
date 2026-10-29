@@ -7,8 +7,8 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { QRCodeSVG } from 'qrcode.react';
 import { api, isNoServer, type ApiUser } from '../api/client';
 import {
-  cancelBill, closeBill, createTable, formatAgorot, getReport, getSettings, listBills, listTables, openBill, paymentsStatus, reportCsvUrl, resolveReview, rotateTable, saveSettings,
-  shekelsToAgorot, updateBill, updateTable, type Bill, type DiningTable, type ReportDay, type PaymentMode, type PaymentSettingsDto, type PaymentsStatus, type ProviderId,
+  cancelBill, closeBill, confirmRefund, createTable, formatAgorot, getReport, getSettings, listBills, listTables, openBill, paymentsStatus, refundableAgorot, refundPayment, reportCsvUrl, resolveReview, rotateTable, saveSettings,
+  shekelsToAgorot, updateBill, updateTable, type Bill, type BillPayment, type DiningTable, type RefundChannel, type ReportDay, type PaymentMode, type PaymentSettingsDto, type PaymentsStatus, type ProviderId,
 } from '../api/payments';
 import { useFeedback } from '../store/feedbackStore';
 import { useT, type UiKey } from '../i18n/ui';
@@ -32,6 +32,15 @@ const ERRORS: Record<string, UiKey> = {
   nothing_to_resolve: 'payErrNothingToResolve',
   invalid_range: 'payErrRange',
   live_not_enabled: 'payLiveLocked',
+  refund_too_large: 'payErrRefundTooLarge',
+  refund_in_progress: 'payErrRefundInProgress',
+  refund_limit: 'payErrRefundLimit',
+  refund_partial_same_day: 'payErrRefundSameDay',
+  refund_provider_changed: 'payErrRefundProvider',
+  refunds_unavailable: 'payErrRefundProvider',
+  refund_reference_missing: 'payErrRefundRef',
+  payment_not_paid: 'payErrRefundNotPaid',
+  nothing_to_confirm: 'payErrNothingToResolve',
 };
 const errorKey = (error: string, status: number): UiKey => ERRORS[error] ?? (status === 400 ? 'payErrInvalid' : status === 429 ? 'loginTooMany' : 'payErrFailed');
 
@@ -130,12 +139,17 @@ function BillsSection({ isOwner }: { isOwner: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; amount: string } | null>(null);
   const [resolving, setResolving] = useState<{ id: string; note: string } | null>(null);
+  const [channel, setChannel] = useState<RefundChannel | null>(null);
+  const [refunding, setRefunding] = useState<{ id: string; amount: string; note: string; error: UiKey | null } | null>(null);
   const money = (a: number) => formatAgorot(a, lang);
 
   const load = useCallback(async () => {
     const [tb, bl] = await Promise.all([listTables(), listBills(view)]);
     if (tb.ok) setTables(tb.data.tables.filter((x) => x.active));
-    if (bl.ok) setBills(bl.data.bills);
+    if (bl.ok) {
+      setBills(bl.data.bills);
+      setChannel(bl.data.refunds);
+    }
     setFailed(!tb.ok || !bl.ok);
   }, [view]);
 
@@ -185,6 +199,36 @@ function BillsSection({ isOwner }: { isOwner: boolean }) {
     if (!r.ok) return notify(t(errorKey(r.error, r.status)), 'error');
     setResolving(null);
     notify(t('payReviewResolvedDone'), 'success');
+    void load();
+  };
+
+  /** The owner can refund from here: paid through the provider and mode set up now, nothing in flight. */
+  const canRefund = (p: BillPayment) =>
+    isOwner && p.status === 'paid' && channel !== null && p.provider === channel.provider && p.mode === channel.mode &&
+    refundableAgorot(p) > 0 && !p.refunds.some((r) => r.status === 'pending' || r.status === 'unknown');
+
+  const refund = async (p: BillPayment) => {
+    if (!refunding) return;
+    const amountAgorot = shekelsToAgorot(refunding.amount);
+    if (amountAgorot === null || amountAgorot < 1) return setRefunding({ ...refunding, error: 'payErrAmount' });
+    if (amountAgorot > refundableAgorot(p)) return setRefunding({ ...refunding, error: 'payErrRefundTooLarge' });
+    if (!(await confirm(t('payRefundConfirm', { amount: money(amountAgorot) }), t('payRefundDo')))) return;
+    setBusy(p.id);
+    const r = await refundPayment(p.id, { amountAgorot, note: refunding.note.trim() });
+    setBusy(null);
+    if (!r.ok) return setRefunding({ ...refunding, error: errorKey(r.error, r.status) });
+    setRefunding(null);
+    if (r.data.status === 'succeeded') notify(t('payRefundDone'), 'success');
+    else notify(t(r.data.status === 'failed' ? 'payRefundFailedMsg' : 'payRefundUnknownMsg'), 'error');
+    void load();
+  };
+
+  const settleRefund = async (refundId: string, outcome: 'succeeded' | 'failed') => {
+    setBusy(refundId);
+    const r = await confirmRefund(refundId, outcome);
+    setBusy(null);
+    if (!r.ok) return notify(t(errorKey(r.error, r.status)), 'error');
+    notify(t('payRefundSaved'), 'success');
     void load();
   };
 
@@ -270,7 +314,7 @@ function BillsSection({ isOwner }: { isOwner: boolean }) {
                 <span style={{ inlineSize: `${pct}%` }} />
               </div>
               {b.payments.length > 0 && (
-                <details open={b.payments.some((p) => p.reviewReason && !p.reviewResolvedAt)}>
+                <details open={b.payments.some((p) => (p.reviewReason && !p.reviewResolvedAt) || p.refunds.some((r) => r.needsConfirmation))}>
                   <summary>{t('payPayments', { n: b.payments.length })}</summary>
                   <ul className="pay-payments">
                     {b.payments.map((p) => (
@@ -294,6 +338,41 @@ function BillsSection({ isOwner }: { isOwner: boolean }) {
                           </span>
                         ) : (
                           <button type="button" className="btn btn-sm" onClick={() => setResolving({ id: p.id, note: '' })}>{t('payResolve')}</button>
+                        ))}
+                        {p.refunds.map((r) => (
+                          <span key={r.id} className={`pay-refund${r.needsConfirmation ? ' pay-review' : ''}`}>
+                            ↩ {t(`payRefund_${r.needsConfirmation ? 'unknown' : r.status}` as UiKey, { amount: money(r.amountAgorot) })}
+                            {r.refundRef && <bdi className="hint" dir="ltr"> {r.refundRef}</bdi>}
+                            {isOwner && r.needsConfirmation && (
+                              <>
+                                <button type="button" className="btn btn-sm" disabled={busy === r.id} onClick={() => void settleRefund(r.id, 'succeeded')}>{t('payRefundWasDone')}</button>
+                                <button type="button" className="btn btn-sm btn-ghost" disabled={busy === r.id} onClick={() => void settleRefund(r.id, 'failed')}>{t('payRefundWasNot')}</button>
+                              </>
+                            )}
+                          </span>
+                        ))}
+                        {canRefund(p) && (refunding?.id === p.id ? (
+                          <form className="pay-resolve" onSubmit={(e) => { e.preventDefault(); void refund(p); }} noValidate>
+                            <label htmlFor={`${id}-ra-${p.id}`}>{t('payRefundAmount')}</label>
+                            <input
+                              id={`${id}-ra-${p.id}`} type="text" inputMode="decimal" dir="ltr" className="pay-amount-input" value={refunding.amount} autoFocus
+                              onChange={(e) => setRefunding({ ...refunding, amount: e.target.value, error: null })}
+                              aria-invalid={refunding.error !== null} aria-describedby={refunding.error ? `${id}-re-${p.id}` : undefined}
+                            />
+                            <label className="visually-hidden" htmlFor={`${id}-rn-${p.id}`}>{t('payRefundNote')}</label>
+                            <input
+                              id={`${id}-rn-${p.id}`} type="text" maxLength={200} placeholder={t('payRefundNote')} value={refunding.note}
+                              onChange={(e) => setRefunding({ ...refunding, note: e.target.value })}
+                            />
+                            <button type="submit" className="btn btn-sm btn-primary" disabled={busy === p.id} aria-busy={busy === p.id}>{t('payRefund')}</button>
+                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setRefunding(null)}>{t('close')}</button>
+                            {refunding.error && <span className="error" id={`${id}-re-${p.id}`} role="alert">{t(refunding.error)}</span>}
+                          </form>
+                        ) : (
+                          <button
+                            type="button" className="btn btn-sm btn-ghost"
+                            onClick={() => setRefunding({ id: p.id, amount: String(refundableAgorot(p) / 100), note: '', error: null })}
+                          >↩ {t('payRefund')}</button>
                         ))}
                       </li>
                     ))}
@@ -515,7 +594,7 @@ function ReportSection() {
 
   const live = data?.days.filter((d) => d.mode === 'live') ?? [];
   const test = data?.days.filter((d) => d.mode === 'test') ?? [];
-  const sum = (rows: ReportDay[], k: 'collectedAgorot' | 'tipsAgorot' | 'payments' | 'bills') => rows.reduce((a, r) => a + r[k], 0);
+  const sum = (rows: ReportDay[], k: 'collectedAgorot' | 'tipsAgorot' | 'refundedAgorot' | 'payments' | 'bills') => rows.reduce((a, r) => a + r[k], 0);
   const dayLabel = (iso: string) => new Intl.DateTimeFormat(lang, { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 
   const table = (rows: ReportDay[], caption: UiKey) => (
@@ -529,6 +608,7 @@ function ReportSection() {
             <th scope="col">{t('payReportPayments')}</th>
             <th scope="col">{t('payReportCollected')}</th>
             <th scope="col">{t('payTipsTotal')}</th>
+            <th scope="col">{t('payReportRefunded')}</th>
           </tr>
         </thead>
         <tbody>
@@ -539,6 +619,7 @@ function ReportSection() {
               <td>{d.payments}</td>
               <td>{money(d.collectedAgorot)}</td>
               <td>{money(d.tipsAgorot)}</td>
+              <td>{money(d.refundedAgorot)}</td>
             </tr>
           ))}
         </tbody>
@@ -549,6 +630,7 @@ function ReportSection() {
             <td>{sum(rows, 'payments')}</td>
             <td>{money(sum(rows, 'collectedAgorot'))}</td>
             <td>{money(sum(rows, 'tipsAgorot'))}</td>
+            <td>{money(sum(rows, 'refundedAgorot'))}</td>
           </tr>
         </tfoot>
       </table>

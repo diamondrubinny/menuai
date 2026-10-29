@@ -5,6 +5,11 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
 ## [Unreleased]
 
 ### Added
+- **Refunds from the bills screen** (owner, Phase 3d; [docs/PAYMENTS.md](docs/PAYMENTS.md#refunds-owner)):
+  - Full or partial refunds through Grow (`refundTransaction`) and PayPlus (`Transactions/RefundByTransactionUID`), never more than was charged.
+  - One refund at a time per payment, enforced by a row lock and a database index. A refund whose outcome is unknown (connection lost) is never retried automatically: the owner checks the provider's dashboard and confirms it.
+  - Grow's rules are checked before calling: only the whole amount on the day of the payment, and at most 2 refunds.
+  - The report and CSV show refunded amounts. A flagged payment refunded in full is marked handled. Every step is audited.
 - **Pay at the table, Phase 3b: Grow (Meshulam)** ([docs/PAYMENTS.md](docs/PAYMENTS.md)):
   - **Checkout:** `createPaymentProcess` sends the guest to Grow's hosted page (card, Bit, wallets).
   - **Server updates:** accepted as form fields. They must carry the stored process token, and are confirmed with `getPaymentProcessInfo` (statusCode 2, exact amount) before the payment counts. `approveTransaction` then follows.
