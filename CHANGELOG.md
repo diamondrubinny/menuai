@@ -9,7 +9,7 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
   - **Checkout:** `createPaymentProcess` sends the guest to Grow's hosted page (card, Bit, wallets).
   - **Server updates:** accepted as form fields. They must carry the stored process token, and are confirmed with `getPaymentProcessInfo` (statusCode 2, exact amount) before the payment counts. `approveTransaction` then follows.
   - **Privacy:** the payer's name and phone go to Grow only and are never stored.
-  - **Live mode stays locked** until the sandbox run has passed (`PAYMENTS_GROW_LIVE`).
+  - **Live mode stays locked** until the sandbox run has passed (`PAYMENTS_LIVE_PROVIDERS`).
 - **After an update, published menus are re-rendered automatically** when the server starts, from their live version. This only applies to menus whose page still carries an older runtime script, which the current CSP would block. Without it, language switching and the menu's interactions would stop on menus published before the update.
 - **Table tablet:**
   - The table page opens the menu in the guest's language. The menu then shows a fixed **💳 Pay the bill** button back to the table page, which works in kiosk mode without a Back button.
@@ -18,6 +18,12 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
   - Bills, payments, money collected and tips per business day (`BUSINESS_TIMEZONE`, default Asia/Jerusalem).
   - CSV export for accounting and sharing tips. It opens in Excel with Hebrew, cells that would start a formula are neutralized, and each export is audited.
 - **Flagged payments** (late or over-payments) can be marked as handled with a note, after the refund was made in the provider's dashboard. This is audited.
+- **Pay at the table, Phase 3c: PayPlus** ([docs/PAYMENTS.md](docs/PAYMENTS.md)):
+  - **Hosted page:** created with `PaymentPages/generateLink`, and it expires together with the reservation.
+  - **Signed callbacks:** callbacks carry an HMAC-SHA256 signature made with the secret key and are trusted only when it is verified on the exact raw body.
+  - **IPN fallback:** used when the guest returns first.
+  - **Privacy:** PayPlus's card, ID and customer fields are never read.
+- **Live mode is enabled per provider** with `PAYMENTS_LIVE_PROVIDERS` (e.g. `grow,payplus`), and only after each provider's sandbox run.
 - **Payment terms:** owners can set a link to their payment terms; guests must accept them before paying. Grow's production review requires this.
 - **Pay at the table, Phase 3a** ([docs/PAYMENTS.md](docs/PAYMENTS.md), plan in [docs/PAYMENTS_PLAN.md](docs/PAYMENTS_PLAN.md)):
   - **Guests:** they scan a table's QR code or use the table tablet. They pay the whole bill, split it equally, or pay any amount, and can add a tip, then pay on the provider's hosted page. The pages are in Hebrew, English and Arabic, work without JavaScript, and target WCAG 2.1 AA.

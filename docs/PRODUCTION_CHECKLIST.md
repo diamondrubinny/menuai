@@ -159,7 +159,7 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
 - 🧑 A payment-terms link is set in Settings, so guests must accept the terms (Grow's review requires it).
 - 🧑 Before going **live** with Grow:
   - Grow's production review is done (server updates answered with HTTP 200, `approveTransaction` sent);
-  - `PAYMENTS_GROW_LIVE=true` is set;
+  - `grow` is listed in `PAYMENTS_LIVE_PROVIDERS`;
   - production identifiers are entered in Settings, not in files.
 - 🧑 Printed table QR codes open `/t/…` (nginx forwards `/t/` and `/pay/` to the API). If a printed code leaks, use **Replace QR code**.
 - 🧑 Waiters (editors) can open, adjust and close bills. Only owners can change settings and tables (try it with an editor account).

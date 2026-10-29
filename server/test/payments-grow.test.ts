@@ -137,14 +137,14 @@ describe('Grow (Meshulam) provider', () => {
     expect((await call('GET', '/api/payments/status')).json()).toMatchObject({ enabled: true, provider: 'grow', mode: 'test' });
   });
 
-  it('unlocks live mode only with PAYMENTS_GROW_LIVE, and then talks to the production API', async () => {
+  it('unlocks live mode only when listed in PAYMENTS_LIVE_PROVIDERS, and then talks to the production API', async () => {
     await app.close();
     await db.close();
-    await setup({ PAYMENTS_GROW_LIVE: 'true' });
+    await setup({ PAYMENTS_LIVE_PROVIDERS: 'grow' });
     expect((await call('PUT', '/api/payments/settings', { enabled: true, provider: 'grow', mode: 'live', tipPercents: [], credentials: CREDS })).statusCode).toBe(200);
     const live: GrowCall[] = [];
     const { app: app2 } = await testApp({
-      db, config: { PAYMENTS_KEY: KEY, PAYMENTS_GROW_LIVE: 'true' },
+      db, config: { PAYMENTS_KEY: KEY, PAYMENTS_LIVE_PROVIDERS: 'grow' },
       paymentHttp: async (input) => {
         live.push({ method: String(input), fields: {} });
         return new Response(JSON.stringify({ status: 0, err: { id: 12 } }));

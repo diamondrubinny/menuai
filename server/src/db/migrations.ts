@@ -202,4 +202,11 @@ ALTER TABLE payments ADD COLUMN review_note text CHECK (length(review_note) <= 2
 CREATE INDEX payments_paid_at ON payments (paid_at) WHERE status = 'paid';
 `,
   },
+  {
+    id: '0006_payplus',
+    sql: `
+ALTER TABLE payment_settings DROP CONSTRAINT IF EXISTS payment_settings_provider_check;
+ALTER TABLE payment_settings ADD CONSTRAINT payment_settings_provider_check CHECK (provider IN ('fake', 'grow', 'payplus'));
+`,
+  },
 ];

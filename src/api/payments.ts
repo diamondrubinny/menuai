@@ -6,7 +6,7 @@
 /** Pay at the table: staff side. Roles are enforced by the server on every call. */
 import { api } from './client';
 
-export type ProviderId = 'fake' | 'grow';
+export type ProviderId = 'fake' | 'grow' | 'payplus';
 export type PaymentMode = 'test' | 'live';
 
 export interface PaymentsStatus {

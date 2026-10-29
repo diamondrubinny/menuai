@@ -21,6 +21,7 @@ const noteSchema = z.string().trim().max(200);
 export const CREDENTIAL_FIELDS: Record<(typeof PROVIDER_IDS)[number], string[]> = {
   fake: [],
   grow: ['userId', 'pageCode'],
+  payplus: ['apiKey', 'secretKey', 'paymentPageUid'],
 };
 
 function parseId(req: FastifyRequest): string {

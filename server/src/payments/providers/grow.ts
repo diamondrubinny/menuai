@@ -17,7 +17,7 @@
  *
  * Grow's docs do not publish the getPaymentProcessInfo response layout, so it is parsed
  * conservatively: anything not clearly "paid (statusCode 2) for the exact amount" stays pending.
- * Live mode stays disabled (PAYMENTS_GROW_LIVE) until this has passed end to end in Grow's sandbox.
+ * Live mode stays disabled (PAYMENTS_LIVE_PROVIDERS) until this has passed end to end in Grow's sandbox.
  */
 import { timingSafeEqual } from 'node:crypto';
 import { agorotToDecimal, decimalToAgorot } from '../money';

@@ -31,7 +31,7 @@ const ERRORS: Record<string, UiKey> = {
   payments_not_configured: 'payNotConfigured',
   nothing_to_resolve: 'payErrNothingToResolve',
   invalid_range: 'payErrRange',
-  live_not_enabled: 'payGrowLiveLocked',
+  live_not_enabled: 'payLiveLocked',
 };
 const errorKey = (error: string, status: number): UiKey => ERRORS[error] ?? (status === 400 ? 'payErrInvalid' : status === 429 ? 'loginTooMany' : 'payErrFailed');
 
@@ -585,7 +585,7 @@ function ReportSection() {
 
 // --- settings (owner) -------------------------------------------------------------------------------
 
-const PROVIDER_KEY: Record<ProviderId, UiKey> = { fake: 'payProvider_fake', grow: 'payProvider_grow' };
+const PROVIDER_KEY: Record<ProviderId, UiKey> = { fake: 'payProvider_fake', grow: 'payProvider_grow', payplus: 'payProvider_payplus' };
 
 function SettingsSection({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
@@ -669,7 +669,7 @@ function SettingsSection({ onSaved }: { onSaved: () => void }) {
           </label>
         ))}
         {form.mode === 'live' && <p className="notice" role="note">{t('payLiveWarning')}</p>}
-        {form.provider === 'grow' && !loaded.providers.find((p) => p.id === 'grow')?.liveAllowed && <p className="hint">{t('payGrowLiveLocked')}</p>}
+        {form.provider !== 'fake' && !loaded.providers.find((p) => p.id === form.provider)?.liveAllowed && <p className="hint">{t('payLiveLocked')}</p>}
       </fieldset>
       <div className="field">
         <label htmlFor={`${id}-tips`}>{t('payTipOptions')}</label>

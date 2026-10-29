@@ -13,13 +13,11 @@ import { computeCharge, type BillTotals, type Charge, type ShareChoice, type Tip
 import { open, seal } from './crypto';
 import { createProvider } from './providers';
 import type { Http } from './providers/grow';
-import { ProviderError, type Notification, type Payer, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
+import { ProviderError, type Notification, type NotificationContext, type Payer, type VerifiedStatus, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
 
-/**
- * A checkout reserves its share, so two guests can't both pay the whole bill at once. After this long
- * the reservation may be released, but only after asking the provider (see releaseStaleCheckouts).
- */
-export const RESERVATION_MINUTES = 20;
+import { RESERVATION_MINUTES } from './reservation';
+
+export { RESERVATION_MINUTES };
 
 // --- settings ---------------------------------------------------------------------------------------
 
@@ -280,10 +278,17 @@ export type ReviewReason = 'bill_not_open' | 'overpaid';
  * Asks the provider (server-to-server) what happened, and records it. Idempotent: verifying a paid
  * payment again changes nothing. A charge for a different amount than we asked for is never accepted.
  */
-export async function verifyPayment(db: SqlClient, provider: PaymentProvider, payment: PaymentRow, kind: string): Promise<VerifyOutcome> {
+export async function verifyPayment(
+  db: SqlClient,
+  provider: PaymentProvider,
+  payment: PaymentRow,
+  kind: string,
+  /** A status the provider already vouched for with a verified signature (see Notification.signedStatus). */
+  known?: VerifiedStatus,
+): Promise<VerifyOutcome> {
   if (payment.status === 'paid') return 'paid';
   if (payment.provider !== provider.id) return 'pending';
-  const status = await provider.fetchStatus(payment.provider_ref);
+  const status = known ?? (await provider.fetchStatus(payment.provider_ref));
   const expected = payment.share_agorot + payment.tip_agorot;
 
   if (status.status === 'paid') {
@@ -371,8 +376,9 @@ export async function handleNotification(
   provider: PaymentProvider,
   body: unknown,
   findPayment: (n: Notification) => Promise<PaymentRow | null>,
+  ctx?: NotificationContext,
 ): Promise<VerifyOutcome | 'ignored'> {
-  const n = provider.parseNotification(body);
+  const n = provider.parseNotification(body, ctx);
   if (!n) {
     await event(db, null, provider.id, 'notify', 'unparsable');
     return 'ignored';
@@ -382,7 +388,7 @@ export async function handleNotification(
     await event(db, payment?.id ?? null, provider.id, 'notify', 'no_match');
     return 'ignored';
   }
-  const outcome = await verifyPayment(db, provider, payment, 'notify');
+  const outcome = await verifyPayment(db, provider, payment, 'notify', n.signedStatus);
   if (outcome === 'paid' && provider.acknowledge) {
     try {
       await provider.acknowledge(payment.provider_ref, n);

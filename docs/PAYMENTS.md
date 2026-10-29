@@ -1,6 +1,6 @@
 # Pay at the table
 
-> Status: **Phase 3b**: **Grow (Meshulam)** is implemented and tested against a simulated Grow API that follows Grow's documented contract. **Live mode stays locked** (`PAYMENTS_GROW_LIVE`) until the whole flow has passed in Grow's own sandbox ([below](#grow-sandbox-run-before-going-live)). The built-in demo provider remains for development.
+> Status: **Phase 3b**: **Grow (Meshulam)** is implemented and tested against a simulated Grow API that follows Grow's documented contract. **Live mode stays locked** (`PAYMENTS_LIVE_PROVIDERS`) until the whole flow has passed in Grow's own sandbox ([below](#grow-sandbox-run-before-going-live)). The built-in demo provider remains for development.
 > **Phase 3b**: Grow (Meshulam), tested end to end against Grow's sandbox. Plan and decisions: [PAYMENTS_PLAN.md](PAYMENTS_PLAN.md).
 
 Guests pay the bill from the table:
@@ -65,7 +65,8 @@ Set `PAYMENTS_ALLOW_FAKE=true` (it is refused in production). The provider "Demo
 |---|---|---|
 | Demo | ✅ 3a | Development and tests only |
 | Grow (Meshulam) | ✅ 3b (sandbox run pending) | Server-side `createPaymentProcess` → hosted page; server update → `getPaymentProcessInfo` check → `approveTransaction` (required for every successful transaction). The page needs the payer's full name and Israeli mobile number, which are passed through and not stored. Sandbox: `https://sandbox.meshulam.co.il/api/light/server/1.0/`. Production identifiers are issued after Grow reviews the integration. |
-| PayPlus, Cardcom, Tranzila | Later | Same adapter interface (`payments/providers/types.ts`) |
+| PayPlus | ✅ 3c (sandbox run pending) | `PaymentPages/generateLink` → hosted page (expires with the reservation). **Signed callbacks** (HMAC-SHA256 with the secret key) are trusted once verified. Otherwise `PaymentPages/ipn` is used, parsed conservatively. Staging: `https://restapidev.payplus.co.il/api/v1.0/`. |
+| Cardcom, Tranzila | Later | Same adapter interface (`payments/providers/types.ts`) |
 
 Adding a provider means implementing `PaymentProvider`: `createSession`, `parseNotification`, `matches`, `fetchStatus` and optionally `acknowledge`. Register it in `providers/index.ts` and list its credential fields in `routes.ts`. Then add tests with a mocked provider API.
 
@@ -127,6 +128,26 @@ On that menu a fixed **💳 Pay the bill** button leads back to the table page. 
 | Payer name and phone | Passed to Grow and **never stored** by MenuAI (a test checks the database). | |
 | Terms | If the owner sets a payment-terms link, guests must tick "I accept the payment terms" (enforced on the server). Grow's production review requires this. | Grow docs: Transition to Production |
 
+## PayPlus: how it works here
+
+| Step | MenuAI does | Source |
+|---|---|---|
+| Checkout | `PaymentPages/generateLink` is called from the server with the `api-key` and `secret-key` headers. It sends `payment_page_uid`, `charge_method` 1 (charge), `amount` in shekels, `currency_code` ILS, `language_code` (he/en), `expiry_datetime` 20 minutes (the reservation), the success/failure/cancel/callback URLs, and `more_info` = our payment id. No payer details are sent: PayPlus's page collects what it needs. The guest is redirected only to an `https` page on `*.payplus.co.il`. | PayPlus docs: Generate Payment Link |
+| Callback | Accepted at `/api/payments/notify/payplus` as JSON. It is trusted only if `user-agent` is `PayPlus` and the `hash` header equals base64(HMAC-SHA256(secret key, **exact raw body**)), compared in constant time. It must match our `page_request_uid`. `status_code` 000 with the exact amount counts as paid; another code counts as declined. Card, ID and customer fields are never read. | PayPlus docs: Validate Requests, Transaction Callback |
+| Return before the callback | `PaymentPages/ipn` with our `payment_request_uid`. The response layout is not published, so only an approved record for *this* page request, with the exact amount, counts. | PayPlus docs: IPN |
+| Late payment | The page expires after 20 minutes, which is when a reservation can be released. Any charge that still arrives is recorded and flagged for refund or review. | |
+
+## PayPlus sandbox run (before going live)
+
+1. Get **staging** (dev) credentials from PayPlus: the API key, the secret key and the payment page UID. Set the page's callback to be allowed. Enter them only in **Settings**.
+2. Settings: choose **PayPlus**, mode **Test**, add the terms link, and turn it on.
+3. Pay a bill with PayPlus's sandbox card **5326-1402-8077-9844** (05/30, CVV 000), and check:
+   - the staff screen shows **Paid** with the approval number;
+   - the bill closes;
+   - PayPlus's dashboard shows the transaction.
+4. Try the rejected card **5326-1402-0001-0120**. Nothing is charged, and the guest can try again. Then test a split, a tip, a cancel, and two phones paying at once.
+5. Add `payplus` to `PAYMENTS_LIVE_PROVIDERS`, restart, enter the **production** credentials and switch to **Live**.
+
 ## Grow sandbox run (before going live)
 
 Grow sends server updates only to a public HTTPS address (not localhost), so run this on the real server in **test** mode:
@@ -145,7 +166,7 @@ Grow sends server updates only to a public HTTPS address (not localhost), so run
 5. Bit, Apple Pay and Google Pay have no sandbox at Grow and charge real money. Test them in live mode with small amounts.
 6. If anything does not match, export `payment_events` for the time of the test (it holds no personal data), and keep the request ids from the server log.
 7. Request Grow's production review. Then:
-   - set `PAYMENTS_GROW_LIVE=true` in `.env` and restart;
+   - add `grow` to `PAYMENTS_LIVE_PROVIDERS` in `.env` (e.g. `PAYMENTS_LIVE_PROVIDERS=grow`) and restart;
    - enter the **production** identifiers;
    - switch the mode to **Live**.
 

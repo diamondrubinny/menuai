@@ -85,6 +85,17 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     done(null, out);
   });
 
+  // JSON (PayPlus callbacks, the demo provider): the exact raw text is kept, because signed callbacks
+  // are verified against the bytes that were signed, not a re-serialization.
+  app.addContentTypeParser('application/json', { parseAs: 'string', bodyLimit: 64 * 1024 }, (req, body, done) => {
+    try {
+      (req as FastifyRequest & { rawBody?: string }).rawBody = body as string;
+      done(null, (body as string).length ? JSON.parse(body as string) : {});
+    } catch {
+      done(Object.assign(new Error('bad json'), { statusCode: 400 }), undefined);
+    }
+  });
+
   // Grow posts its server update "the same way as createPaymentProcess": multipart/form-data. Text
   // fields only (no files), small, parsed by the platform's own FormData parser.
   app.addContentTypeParser('multipart/form-data', { parseAs: 'buffer', bodyLimit: 32 * 1024 }, (req, body, done) => {
@@ -257,7 +268,11 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     // Always 200 for well-formed requests we chose to ignore, so providers don't retry forever.
     if (!active || active.provider.id !== providerId) return reply.send({ ok: true });
     try {
-      const outcome = await handleNotification(db, active.provider, req.body, (n) => (n.paymentId ? loadPayment(db, n.paymentId) : Promise.resolve(null)));
+      const outcome = await handleNotification(
+        db, active.provider, req.body,
+        (n) => (n.paymentId ? loadPayment(db, n.paymentId) : Promise.resolve(null)),
+        { rawBody: (req as FastifyRequest & { rawBody?: string }).rawBody, headers: req.headers },
+      );
       return reply.send({ ok: true, outcome });
     } catch (err) {
       // The provider's status API is unreachable: answer "try later" (providers resend updates).

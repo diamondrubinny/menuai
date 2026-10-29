@@ -38,8 +38,15 @@ const configSchema = z
       .optional(),
     /** Development only: the built-in demo provider that takes no real money. Refused in production. */
     PAYMENTS_ALLOW_FAKE: bool.default(false),
-    /** Allows Grow's live mode. Set only after the full flow passed in Grow's sandbox (docs/PAYMENTS.md). */
-    PAYMENTS_GROW_LIVE: bool.default(false),
+    /**
+     * Providers allowed in live mode (comma-separated, e.g. `grow,payplus`). Add one only after the full
+     * flow passed in that provider's sandbox (docs/PAYMENTS.md). Empty: test mode only.
+     */
+    PAYMENTS_LIVE_PROVIDERS: z
+      .string()
+      .default('')
+      .transform((v) => v.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
+      .pipe(z.array(z.enum(['grow', 'payplus']))),
     /** The business's time zone: payment reports are grouped by its calendar days. */
     BUSINESS_TIMEZONE: z
       .string()

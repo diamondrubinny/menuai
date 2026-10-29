@@ -10,7 +10,7 @@
  * Trust rule: a browser redirect or a provider notification is only a *hint*. A payment becomes
  * "paid" only after `fetchStatus` confirms it server-to-server, for the exact amount we asked for.
  */
-export const PROVIDER_IDS = ['fake', 'grow'] as const;
+export const PROVIDER_IDS = ['fake', 'grow', 'payplus'] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 export type PaymentMode = 'test' | 'live';
 
@@ -52,6 +52,18 @@ export interface Notification {
   paymentId?: string;
   /** Raw fields to echo back in an acknowledgement (Grow approveTransaction). Untrusted. */
   fields: Record<string, string>;
+  /**
+   * Set only by providers that cryptographically sign their notifications (e.g. PayPlus HMAC), after
+   * the signature checked out: the outcome then needs no extra status call. It is still matched to
+   * the stored payment and must carry the exact amount.
+   */
+  signedStatus?: VerifiedStatus;
+}
+
+/** The raw request, for providers that sign their notifications. */
+export interface NotificationContext {
+  rawBody?: string;
+  headers: Record<string, string | string[] | undefined>;
 }
 
 export interface PaymentProvider {
@@ -62,7 +74,7 @@ export interface PaymentProvider {
   readonly requiresPayer: boolean;
   createSession(req: SessionRequest): Promise<Session>;
   /** Reads a server-to-server notification. Returns null when it is not one of ours. */
-  parseNotification(body: unknown): Notification | null;
+  parseNotification(body: unknown, ctx?: NotificationContext): Notification | null;
   /** True when this notification belongs to the stored payment (e.g. its process token matches). */
   matches(ref: ProviderRef, notification: Notification): boolean;
   fetchStatus(ref: ProviderRef): Promise<VerifiedStatus>;
