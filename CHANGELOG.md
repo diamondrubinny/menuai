@@ -10,6 +10,9 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
   - **Server updates:** accepted as form fields. They must carry the stored process token, and are confirmed with `getPaymentProcessInfo` (statusCode 2, exact amount) before the payment counts. `approveTransaction` then follows.
   - **Privacy:** the payer's name and phone go to Grow only and are never stored.
   - **Live mode stays locked** until the sandbox run has passed (`PAYMENTS_GROW_LIVE`).
+- **Table tablet:**
+  - The table page opens the menu in the guest's language. The menu then shows a fixed **💳 Pay the bill** button back to the table page, which works in kiosk mode without a Back button.
+  - The table code travels in the URL fragment, which never reaches a server or a log. It is kept for that browser tab only and removed from the visible address.
 - **Payment report** (owner):
   - Bills, payments, money collected and tips per business day (`BUSINESS_TIMEZONE`, default Asia/Jerusalem).
   - CSV export for accounting and sharing tips. It opens in Excel with Hebrew, cells that would start a formula are neutralized, and each export is audited.

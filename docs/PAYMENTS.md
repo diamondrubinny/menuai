@@ -81,6 +81,19 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
 | Card / Bit details | Payment | — | **Never reach MenuAI** | — | Provider only |
 
+## The table tablet: menu ↔ payment
+
+The table's QR code, or the address opened on the table tablet, leads to `/t/<code>`. From there, **📖 View menu** opens the published menu in the guest's language, as `/m/<menu>?lang=…#table=<code>`.
+
+On that menu a fixed **💳 Pay the bill** button leads back to the table page. This matters in kiosk mode, where there is no Back button. The button:
+
+- is in the guest's current menu language and the theme's colors;
+- reads the code from the URL fragment, which browsers never send to a server, so it never reaches a log;
+- keeps the code for that browser tab only (`sessionStorage`) and removes it from the visible address, so a shared link does not carry it;
+- appears only on menus served from a MenuAI server (`/m/…`), never in a downloaded HTML file;
+- leaves room at the bottom so the menu's credit line stays visible;
+- is hidden when printing.
+
 ## Report, export and flagged payments (owner)
 
 - **Report** (Pay at the table → Report):

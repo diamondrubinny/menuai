@@ -18,6 +18,7 @@ import { safeUrl } from '../src/app';
 import { applyRetention } from '../src/maintenance/retention';
 import { createMediaStore } from '../src/uploads/store';
 import { createHash } from 'node:crypto';
+import { createSampleMenu } from '../../src/core/sample';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -502,6 +503,25 @@ describe('pay at the table', () => {
     const recent = (await call('GET', '/api/payments/bills?view=recent', 'editor')).json().bills.find((b: { id: string }) => b.id === billId);
     expect(recent.payments[0]).toMatchObject({ reviewReason: 'bill_not_open', reviewNote: 'Refunded in the Grow dashboard' });
     expect(recent.payments[0].reviewResolvedAt).toBeTruthy();
+  });
+
+  it('links the table page to its published menu, carrying the table code for the way back to paying', async () => {
+    await enable();
+    const created = await call('POST', '/api/menus', 'editor', { menu: { ...createSampleMenu(), title: { he: 'לומייר', en: 'Lumiere' } } });
+    const menu = created.json().menu as { id: string; draftVersion: number };
+    expect((await call('POST', `/api/menus/${menu.id}/publish`, 'editor', {}, { 'if-match': `"${menu.draftVersion}"` })).statusCode).toBe(200);
+    expect((await call('POST', '/api/payments/tables', 'owner', { label: '9', menuId: menu.id })).statusCode).toBe(201);
+    const t = ((await call('GET', '/api/payments/tables', 'editor')).json().tables as { label: string; url: string }[]).find((x) => x.label === '9')!;
+    const code = new URL(t.url).pathname.split('/').pop();
+    const page = await call('GET', `${new URL(t.url).pathname}?lang=en`, 'guest');
+    expect(page.body).toContain(`href="http://localhost:5173/m/lumiere?lang=en#table=${code}"`);
+    expect(page.body).toContain('Lumiere');
+    // The published page's CSP still pins its (now larger) runtime script.
+    const published = await call('GET', '/m/lumiere', 'guest');
+    const script = /<script>([\s\S]*?)<\/script>/.exec(published.body)![1]!;
+    const hash = createHash('sha256').update(script).digest('base64');
+    expect(published.headers['content-security-policy']).toContain(`'sha256-${hash}'`);
+    expect(script).toContain('initTablePay(document)');
   });
 
   it('accepts provider notifications without an Origin, but nothing else', async () => {

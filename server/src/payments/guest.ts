@@ -119,7 +119,11 @@ export async function guestPaymentRoutes(app: FastifyInstance) {
     const info = await menuInfo(db, config.PUBLIC_URL, table.menuId, locale);
     const selfPath = `/t/${(req.params as { token: string }).token}`;
     const active = await activeProvider(db, config, app.deps.paymentHttp);
-    const common = { locale, tableLabel: table.label, restaurant: info.restaurant, menuUrl: info.menuUrl, selfPath };
+    const token = (req.params as { token: string }).token;
+    // The menu opens in the guest's language, carrying the table code in the fragment (never sent to a
+    // server) so the published menu can show a "Pay the bill" button back to this page (tablePay.js).
+    const menuUrl = info.menuUrl ? `${info.menuUrl}?lang=${locale}#table=${token}` : null;
+    const common = { locale, tableLabel: table.label, restaurant: info.restaurant, menuUrl, selfPath };
     if (!active) return sendHtml(reply, tablePage({ ...common, state: { kind: 'unavailable' } }), [], status);
     const bill = await openBillForTable(db, table.id);
     if (!bill) {
