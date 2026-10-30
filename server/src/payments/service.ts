@@ -3,7 +3,7 @@
  * Copyright (c) 2026 Diamond Rubinny and MenuAI contributors · AGPL-3.0-only + attribution terms (NOTICE)
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { Config } from '../config';
 import type { SqlClient } from '../db/sql';
@@ -12,13 +12,12 @@ import { HttpError, notFound } from '../errors';
 import { computeCharge, type BillTotals, type Charge, type ShareChoice, type TipChoice } from './money';
 import { open, seal } from './crypto';
 import { createProvider } from './providers';
-import { ProviderError, type Notification, type Payer, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
+import type { Http } from './providers/grow';
+import { ProviderError, type Notification, type NotificationContext, type Payer, type Receipt, type VerifiedStatus, type PaymentMode, type PaymentProvider, type ProviderId, type ProviderRef } from './providers/types';
 
-/**
- * A checkout reserves its share, so two guests can't both pay the whole bill at once. After this long
- * the reservation may be released, but only after asking the provider (see releaseStaleCheckouts).
- */
-export const RESERVATION_MINUTES = 20;
+import { RESERVATION_MINUTES } from './reservation';
+
+export { RESERVATION_MINUTES };
 
 // --- settings ---------------------------------------------------------------------------------------
 
@@ -28,6 +27,8 @@ export interface PaymentSettings {
   mode: PaymentMode;
   credentials: Record<string, string> | null;
   tipPercents: number[];
+  /** Restaurant's payment terms (https). When set, guests must accept them before paying. */
+  termsUrl: string | null;
   updatedAt: Date | null;
 }
 
@@ -37,16 +38,17 @@ interface SettingsRow {
   mode: PaymentMode;
   credentials_enc: string | null;
   tip_percents: number[];
+  terms_url: string | null;
   updated_at: Date;
 }
 
 export const DEFAULT_SETTINGS: PaymentSettings = {
-  enabled: false, provider: 'fake', mode: 'test', credentials: null, tipPercents: [10, 12, 15], updatedAt: null,
+  enabled: false, provider: 'fake', mode: 'test', credentials: null, tipPercents: [10, 12, 15], termsUrl: null, updatedAt: null,
 };
 
 export async function loadSettings(db: SqlClient, config: Config): Promise<PaymentSettings> {
   const [row] = await db.query<SettingsRow>(
-    'SELECT enabled, provider, mode, credentials_enc, tip_percents, updated_at FROM payment_settings WHERE id = 1',
+    'SELECT enabled, provider, mode, credentials_enc, tip_percents, terms_url, updated_at FROM payment_settings WHERE id = 1',
   );
   if (!row) return DEFAULT_SETTINGS;
   let credentials: Record<string, string> | null = null;
@@ -64,6 +66,7 @@ export async function loadSettings(db: SqlClient, config: Config): Promise<Payme
     mode: row.mode,
     credentials,
     tipPercents: row.tip_percents.map(Number),
+    termsUrl: row.terms_url,
     updatedAt: row.updated_at,
   };
 }
@@ -72,18 +75,18 @@ export async function saveSettings(
   db: SqlClient,
   config: Config,
   userId: string,
-  next: { enabled: boolean; provider: ProviderId; mode: PaymentMode; tipPercents: number[]; credentials?: Record<string, string> | null },
+  next: { enabled: boolean; provider: ProviderId; mode: PaymentMode; tipPercents: number[]; termsUrl: string | null; credentials?: Record<string, string> | null },
 ): Promise<void> {
   if (!config.PAYMENTS_KEY) throw new HttpError(503, 'payments_not_configured');
   // undefined = keep the stored credentials; null = remove them; object = replace them.
   const credentialsSql = next.credentials === undefined ? 'payment_settings.credentials_enc' : '$5';
   const sealed = next.credentials ? seal(JSON.stringify(next.credentials), config.PAYMENTS_KEY) : null;
   await db.query(
-    `INSERT INTO payment_settings (id, enabled, provider, mode, credentials_enc, tip_percents, updated_by, updated_at)
-     VALUES (1, $1, $2, $3, $5, $4, $6, now())
-     ON CONFLICT (id) DO UPDATE SET enabled = $1, provider = $2, mode = $3, tip_percents = $4,
+    `INSERT INTO payment_settings (id, enabled, provider, mode, credentials_enc, tip_percents, terms_url, updated_by, updated_at)
+     VALUES (1, $1, $2, $3, $5, $4, $7, $6, now())
+     ON CONFLICT (id) DO UPDATE SET enabled = $1, provider = $2, mode = $3, tip_percents = $4, terms_url = $7,
        credentials_enc = ${credentialsSql}, updated_by = $6, updated_at = now()`,
-    [next.enabled, next.provider, next.mode, next.tipPercents, sealed, userId],
+    [next.enabled, next.provider, next.mode, next.tipPercents, sealed, userId, next.termsUrl],
   );
   await audit(db, {
     userId,
@@ -95,11 +98,29 @@ export async function saveSettings(
 }
 
 /** The adapter guests pay through right now, or null when payments are off or not set up. */
-export async function activeProvider(db: SqlClient, config: Config): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
+export async function activeProvider(
+  db: SqlClient,
+  config: Config,
+  http?: Http,
+): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
+  const configured = await configuredProvider(db, config, http);
+  return configured?.settings.enabled ? configured : null;
+}
+
+/**
+ * The provider payments were made through, even while guests can't start new ones (payments switched
+ * off). Notifications, return pages and stale-checkout checks use this, so money that is already on
+ * its way is still recorded. (Changing the provider, mode or credentials is refused while a checkout
+ * is in progress: see the settings route.)
+ */
+export async function configuredProvider(
+  db: SqlClient,
+  config: Config,
+  http?: Http,
+): Promise<{ provider: PaymentProvider; settings: PaymentSettings } | null> {
   if (!config.PAYMENTS_KEY) return null;
   const settings = await loadSettings(db, config);
-  if (!settings.enabled) return null;
-  const provider = createProvider(config, settings);
+  const provider = createProvider(config, settings, http);
   return provider ? { provider, settings } : null;
 }
 
@@ -165,8 +186,8 @@ export interface CheckoutInput {
   tip: TipChoice;
   payer: Payer;
   locale: string;
-  /** Builds the guest-facing return URLs for a payment id. */
-  urls: (paymentId: string) => { successUrl: string; cancelUrl: string; notifyUrl: string };
+  /** Builds the provider-facing URLs for a payment id (and its receipt-callback key, when the provider has one). */
+  urls: (paymentId: string, receiptKey: string | null) => { successUrl: string; cancelUrl: string; notifyUrl: string; receiptNotifyUrl?: string };
   description: string;
 }
 
@@ -198,6 +219,8 @@ export async function startCheckout(
     return { paymentId: payment!.id, charge };
   });
 
+  // A per-payment key in the receipt callback's URL: that callback is unsigned (see the receipt route).
+  const receiptKey = provider.receiptCallback ? randomBytes(16).toString('hex') : null;
   try {
     const session = await provider.createSession({
       paymentId: reserved.paymentId,
@@ -205,9 +228,10 @@ export async function startCheckout(
       description: input.description,
       payer: input.payer,
       locale: input.locale,
-      ...input.urls(reserved.paymentId),
+      ...input.urls(reserved.paymentId, receiptKey),
     });
-    await db.query('UPDATE payments SET provider_ref = $2 WHERE id = $1', [reserved.paymentId, JSON.stringify(session.ref)]);
+    const ref = receiptKey ? { ...session.ref, receiptKey } : session.ref;
+    await db.query('UPDATE payments SET provider_ref = $2 WHERE id = $1', [reserved.paymentId, JSON.stringify(ref)]);
     return { paymentId: reserved.paymentId, redirectUrl: session.redirectUrl, charge: reserved.charge };
   } catch (err) {
     // Release the reservation: the guest can try again right away.
@@ -229,15 +253,24 @@ export interface PaymentRow {
   provider: ProviderId;
   provider_ref: ProviderRef;
   created_at: Date;
+  receipt_url: string | null;
 }
+
+const PAYMENT_COLUMNS = 'id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at, receipt_url';
 
 export async function loadPayment(db: SqlClient, id: string): Promise<PaymentRow | null> {
   if (!z.uuid().safeParse(id).success) return null;
-  const [row] = await db.query<PaymentRow>(
-    'SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at FROM payments WHERE id = $1',
-    [id],
-  );
+  const [row] = await db.query<PaymentRow>(`SELECT ${PAYMENT_COLUMNS} FROM payments WHERE id = $1`, [id]);
   return row ?? null;
+}
+
+/** Keeps the first receipt reported for a payment (a later, different one is ignored). */
+async function storeReceipt(db: SqlClient, paymentId: string, receipt: Receipt): Promise<boolean> {
+  const rows = await db.query(
+    'UPDATE payments SET receipt_number = $2, receipt_url = $3 WHERE id = $1 AND receipt_url IS NULL RETURNING 1',
+    [paymentId, receipt.number, receipt.url],
+  );
+  return rows.length > 0;
 }
 
 async function event(db: SqlClient, paymentId: string | null, provider: string, kind: string, outcome: string) {
@@ -257,10 +290,17 @@ export type ReviewReason = 'bill_not_open' | 'overpaid';
  * Asks the provider (server-to-server) what happened, and records it. Idempotent: verifying a paid
  * payment again changes nothing. A charge for a different amount than we asked for is never accepted.
  */
-export async function verifyPayment(db: SqlClient, provider: PaymentProvider, payment: PaymentRow, kind: string): Promise<VerifyOutcome> {
+export async function verifyPayment(
+  db: SqlClient,
+  provider: PaymentProvider,
+  payment: PaymentRow,
+  kind: string,
+  /** A status the provider already vouched for with a verified signature (see Notification.signedStatus). */
+  known?: VerifiedStatus,
+): Promise<VerifyOutcome> {
   if (payment.status === 'paid') return 'paid';
   if (payment.provider !== provider.id) return 'pending';
-  const status = await provider.fetchStatus(payment.provider_ref);
+  const status = known ?? (await provider.fetchStatus(payment.provider_ref));
   const expected = payment.share_agorot + payment.tip_agorot;
 
   if (status.status === 'paid') {
@@ -279,11 +319,14 @@ export async function verifyPayment(db: SqlClient, provider: PaymentProvider, pa
       // Money was taken either way: record it as paid, and flag it when the bill can't take it.
       const review: ReviewReason | null =
         bill!.status !== 'open' ? 'bill_not_open' : bill!.paid_other + payment.share_agorot > bill!.amount_agorot ? 'overpaid' : null;
+      // Refund handles join the stored identifiers (the ones we already have win).
       const [row] = await tx.query<{ id: string }>(
-        "UPDATE payments SET status = 'paid', paid_at = now(), provider_txn = $2, review_reason = $3 WHERE id = $1 AND status <> 'paid' RETURNING id",
-        [payment.id, status.transactionRef?.slice(0, 100) ?? null, review],
+        `UPDATE payments SET status = 'paid', paid_at = now(), provider_txn = $2, review_reason = $3, provider_ref = $4::jsonb || provider_ref
+         WHERE id = $1 AND status <> 'paid' RETURNING id`,
+        [payment.id, status.transactionRef?.slice(0, 100) ?? null, review, JSON.stringify(status.refundRef ?? {})],
       );
       if (!row) return null;
+      if (status.receipt) await storeReceipt(tx, payment.id, status.receipt);
       // Fully paid → the bill closes itself.
       await tx.query(
         `UPDATE bills SET status = 'paid', closed_at = now() WHERE id = $1 AND status = 'open'
@@ -316,7 +359,7 @@ export async function releaseStaleCheckouts(
   billId?: string,
 ): Promise<number> {
   const stale = await db.query<PaymentRow>(
-    `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, provider_ref, created_at FROM payments
+    `SELECT ${PAYMENT_COLUMNS} FROM payments
      WHERE status = 'pending' AND created_at < now() - make_interval(mins => ${RESERVATION_MINUTES})
        ${billId ? 'AND bill_id = $1' : ''} ORDER BY created_at LIMIT 50`,
     billId ? [billId] : [],
@@ -348,8 +391,9 @@ export async function handleNotification(
   provider: PaymentProvider,
   body: unknown,
   findPayment: (n: Notification) => Promise<PaymentRow | null>,
+  ctx?: NotificationContext,
 ): Promise<VerifyOutcome | 'ignored'> {
-  const n = provider.parseNotification(body);
+  const n = provider.parseNotification(body, ctx);
   if (!n) {
     await event(db, null, provider.id, 'notify', 'unparsable');
     return 'ignored';
@@ -359,8 +403,52 @@ export async function handleNotification(
     await event(db, payment?.id ?? null, provider.id, 'notify', 'no_match');
     return 'ignored';
   }
-  const outcome = await verifyPayment(db, provider, payment, 'notify');
-  if (outcome === 'paid' && provider.acknowledge) await provider.acknowledge(payment.provider_ref, n);
+  const outcome = await verifyPayment(db, provider, payment, 'notify', n.signedStatus);
+  if (outcome === 'paid' && n.refundRef) {
+    // The notification matched this payment's secret: keep its refund handles if we lack them.
+    await db.query("UPDATE payments SET provider_ref = $2::jsonb || provider_ref WHERE id = $1 AND status = 'paid'", [payment.id, JSON.stringify(n.refundRef)]);
+  }
+  // A signed outcome can carry the receipt even when the payment was already confirmed another way.
+  if (outcome === 'paid' && n.signedStatus?.receipt) await storeReceipt(db, payment.id, n.signedStatus.receipt);
+  if (outcome === 'paid' && provider.acknowledge) {
+    try {
+      await provider.acknowledge(payment.provider_ref, n);
+    } catch {
+      // The payment is already recorded; the provider simply sends the update again later.
+      await event(db, payment.id, provider.id, 'notify', 'ack_failed');
+    }
+  }
   return outcome;
 }
 
+
+/**
+ * A provider's separate receipt callback (Grow's invoiceNotifyUrl). It is unsigned, so it counts only
+ * when the URL's per-payment key matches (constant time), the body matches the stored identifiers,
+ * and the provider's parser accepted the link. Returns what happened, for the event log.
+ */
+export async function handleReceipt(
+  db: SqlClient,
+  provider: PaymentProvider,
+  paymentId: string,
+  key: string,
+  body: unknown,
+): Promise<'stored' | 'duplicate' | 'ignored'> {
+  const payment = await loadPayment(db, paymentId);
+  const stored = payment?.provider === provider.id ? payment.provider_ref.receiptKey : undefined;
+  const a = Buffer.from(stored ?? '');
+  const b = Buffer.from(key);
+  const parsed = provider.parseReceipt?.(body) ?? null;
+  // Every identifier we hold must match, and at least one must be there to compare.
+  const known = parsed && payment ? Object.entries(parsed.match).filter(([k]) => payment.provider_ref[k] !== undefined) : [];
+  const ok =
+    a.length > 0 && a.length === b.length && timingSafeEqual(a, b) && known.length > 0 &&
+    known.every(([k, v]) => payment!.provider_ref[k] === v);
+  if (!ok) {
+    await event(db, payment && stored ? payment.id : null, provider.id, 'receipt', 'no_match');
+    return 'ignored';
+  }
+  const fresh = await storeReceipt(db, payment!.id, parsed!.receipt);
+  await event(db, payment!.id, provider.id, 'receipt', fresh ? 'stored' : 'duplicate');
+  return fresh ? 'stored' : 'duplicate';
+}

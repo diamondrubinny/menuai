@@ -153,11 +153,25 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
   - a tip;
   - decline;
   - two guests paying at once.
-- 🧑 Before going **live** with Grow: Grow's production review is done (server updates answered with HTTP 200, `approveTransaction` sent). Production identifiers are entered in Settings, not in files.
+- 🧑 The Grow sandbox run in [docs/PAYMENTS.md](PAYMENTS.md#grow-sandbox-run-before-going-live) passed: paid, split, tip, cancel, and two guests at once.
+- 🧑 `BUSINESS_TIMEZONE` matches the restaurant. The daily report matches the provider's dashboard for a test day.
+- 🧑 Someone owns the ⚠️ flagged payments: they refund from the bills screen (or in the provider's dashboard, then **Mark as handled**).
+- 🧑 If ordering from the menu is on:
+  - someone watches **Orders** during service;
+  - an order from a tablet and from a phone reaches the screen;
+  - accepting it adds it to the bill;
+  - rejecting it shows the reason to the guest;
+  - the published menu was re-published, or the server restarted, so the cart's script is in place.
+- 🧑 Refunds were tried in the provider's sandbox: a full and a partial refund, and Grow's same-day rule. The owner knows that an **unknown** refund must be checked in the provider's dashboard and confirmed, never repeated blindly.
+- 🧑 A payment-terms link is set in Settings, so guests must accept the terms (Grow's review requires it).
+- 🧑 Before going **live** with Grow:
+  - Grow's production review is done (server updates answered with HTTP 200, `approveTransaction` sent);
+  - `grow` is listed in `PAYMENTS_LIVE_PROVIDERS`;
+  - production identifiers are entered in Settings, not in files.
 - 🧑 Printed table QR codes open `/t/…` (nginx forwards `/t/` and `/pay/` to the API). If a printed code leaks, use **Replace QR code**.
 - 🧑 Waiters (editors) can open, adjust and close bills. Only owners can change settings and tables (try it with an editor account).
 - 🧑 The nginx log shows `/t/[table]`, never the table code.
-- ⚖️ Receipts and tax invoices: who issues them, and the allocation-number rules. An accountant must confirm.
+- ⚖️ Receipts and tax invoices: who issues them, and the allocation-number rules. An accountant must confirm. MenuAI issues none: turn on the provider's invoice module and check in the sandbox run that the 🧾 receipt link appears.
 - ⚖️ Payment terms, the cancellation/refund policy and the privacy policy payments section, checked by a lawyer. A DPA with the payment provider.
 - 🌐 An Arabic native speaker reviews the guest pages.
 - 🔍 A penetration test covers `/t/`, `/pay/` and `/api/payments/notify/`.

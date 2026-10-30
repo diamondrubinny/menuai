@@ -59,6 +59,8 @@ services:
       UPLOAD_QUOTA_MB: ${UPLOAD_QUOTA_MB:-2048}
       # Encrypts payment provider credentials; without it, pay at the table is off (docs/PAYMENTS.md).
       PAYMENTS_KEY: ${PAYMENTS_KEY:-}
+      PAYMENTS_LIVE_PROVIDERS: ${PAYMENTS_LIVE_PROVIDERS:-}
+      BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Asia/Jerusalem}
     volumes:
       - published:/var/lib/menuai/published
       - uploads:/var/lib/menuai/uploads

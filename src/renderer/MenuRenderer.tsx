@@ -107,6 +107,7 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
     return (
       <li
         key={item.id}
+        data-ma-item={item.id}
         className={`ma-item ma-reveal${item.soldOut ? ' ma-soldout' : ''}${showImage ? ' ma-has-image' : ''}${item.tags.includes('chefPick') ? ' ma-featured' : ''}`}
         style={{ '--ma-i': Math.min(index, 8) } as CSSProperties}
       >
@@ -130,7 +131,7 @@ export function MenuRenderer({ menu, locale, idPrefix = 'ma', langMode = 'react'
             {item.variants.length > 0 && (
               <ul className="ma-variants">
                 {item.variants.map((v) => (
-                  <li key={v.id} className="ma-variant">
+                  <li key={v.id} className="ma-variant" data-ma-variant={v.id}>
                     <span className="ma-variant-label">{tx(v.label)}</span>
                     <span className="ma-leader" aria-hidden="true" />
                     <span className="ma-price">{price(v.price)}</span>

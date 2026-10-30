@@ -1,6 +1,6 @@
 # Pay at the table
 
-> Status: **Phase 3a** (this release): the full flow with the built-in **demo provider** (no real money).
+> Status: **Phase 3b**: **Grow (Meshulam)** is implemented and tested against a simulated Grow API that follows Grow's documented contract. **Live mode stays locked** (`PAYMENTS_LIVE_PROVIDERS`) until the whole flow has passed in Grow's own sandbox ([below](#grow-sandbox-run-before-going-live)). The built-in demo provider remains for development.
 > **Phase 3b**: Grow (Meshulam), tested end to end against Grow's sandbox. Plan and decisions: [PAYMENTS_PLAN.md](PAYMENTS_PLAN.md).
 
 Guests pay the bill from the table:
@@ -64,8 +64,9 @@ Set `PAYMENTS_ALLOW_FAKE=true` (it is refused in production). The provider "Demo
 | Provider | Status | Notes (*verify with the provider*) |
 |---|---|---|
 | Demo | ✅ 3a | Development and tests only |
-| Grow (Meshulam) | 3b | Server-side `createPaymentProcess` → hosted page; server update → `getPaymentProcessInfo` check → `approveTransaction` (required for every successful transaction). The page needs the payer's full name and Israeli mobile number, which are passed through and not stored. Sandbox: `https://sandbox.meshulam.co.il/api/light/server/1.0/`. Production identifiers are issued after Grow reviews the integration. |
-| PayPlus, Cardcom, Tranzila | Later | Same adapter interface (`payments/providers/types.ts`) |
+| Grow (Meshulam) | ✅ 3b (sandbox run pending) | Server-side `createPaymentProcess` → hosted page; server update → `getPaymentProcessInfo` check → `approveTransaction` (required for every successful transaction). The page needs the payer's full name and Israeli mobile number, which are passed through and not stored. Sandbox: `https://sandbox.meshulam.co.il/api/light/server/1.0/`. Production identifiers are issued after Grow reviews the integration. |
+| PayPlus | ✅ 3c (sandbox run pending) | `PaymentPages/generateLink` → hosted page (expires with the reservation). **Signed callbacks** (HMAC-SHA256 with the secret key) are trusted once verified. Otherwise `PaymentPages/ipn` is used, parsed conservatively. Staging: `https://restapidev.payplus.co.il/api/v1.0/`. |
+| Cardcom, Tranzila | Later | Same adapter interface (`payments/providers/types.ts`) |
 
 Adding a provider means implementing `PaymentProvider`: `createSession`, `parseNotification`, `matches`, `fetchStatus` and optionally `acknowledge`. Register it in `providers/index.ts` and list its credential fields in `routes.ts`. Then add tests with a mocked provider API.
 
@@ -76,10 +77,169 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Tables (name, code, linked menu) | Showing the right bill | Contract / legitimate interest | DB | Until deleted | — |
 | Bills (amount, staff note, who opened them, times) | Collecting payment, accounting | Contract, legal obligation (accounting) | DB | ⚖️ As tax law requires (typically 7 years); not deleted automatically | — |
 | Payments (share, tip, status, provider reference, times) | Reconciliation, refunds | Contract, legal obligation | DB | As bills | Provider holds the transaction |
+| Provider handles for refunds (Grow transactionId + transactionToken, PayPlus transaction uid; not card data) | Refunding through the provider's API | Contract | DB, with the payment | As bills | Provider |
+| Refunds (amount, status, the provider's refund reference or error code, owner's note, who and when) | Accounting, audit | Contract, legal obligation | DB | As bills | Provider performs the refund |
+| Orders from the menu (dishes, sizes, quantities, prices from the published menu, table, times, who accepted or rejected, the reason) | Serving the order, adding it to the bill | Contract | DB | As bills | — |
+| Order notes (free text the guest types, up to 140 characters; the cart asks for no personal details) | Telling the kitchen | Contract | DB, with the order | As bills | — |
+| Receipt number and link (the document is issued and held by the provider or its invoice company; it can show the payer's name) | Giving the guest and staff the receipt | Contract, legal obligation | DB, with the payment (link only) | As bills | Provider / invoice company (DPA ⚖️) |
 | Abandoned checkouts | Releasing reservations | Legitimate interest | DB | Marked expired after 24 h | — |
 | Provider notification log (no names, phones or card data) | Troubleshooting, audit | Legitimate interest | DB | 13 months | — |
 | Payer name and mobile (Grow only) | Provider requirement (receipt) | Contract | **Not stored by MenuAI**; sent to the provider | — | Provider (DPA ⚖️) |
 | Card / Bit details | Payment | — | **Never reach MenuAI** | — | Provider only |
+
+## Changing settings safely
+
+- **Turning payments off** stops new checkouts. Guests who are already on the payment page are still recorded when they finish, because their notification is verified with the configured provider.
+- **Changing the provider, the mode (test/live) or the account details** is refused (`payments_in_progress`) while any guest is in the middle of paying. A checkout is verified with what it started with, so switching underneath it could leave a real charge unconfirmed. Wait a moment, or let abandoned checkouts be released (20 minutes, checked with the provider), then change.
+- **Tips, terms link and on/off** can change at any time.
+
+## The table tablet: menu ↔ payment
+
+The table's QR code, or the address opened on the table tablet, leads to `/t/<code>`. From there, **📖 View menu** opens the published menu in the guest's language, as `/m/<menu>?lang=…#table=<code>`.
+
+On that menu a fixed **💳 Pay the bill** button leads back to the table page. This matters in kiosk mode, where there is no Back button. The button:
+
+- is in the guest's current menu language and the theme's colors;
+- reads the code from the URL fragment, which browsers never send to a server, so it never reaches a log;
+- keeps the code for that browser tab only (`sessionStorage`) and removes it from the visible address, so a shared link does not carry it;
+- appears only on menus served from a MenuAI server (`/m/…`), never in a downloaded HTML file;
+- leaves room at the bottom so the menu's credit line stays visible;
+- is hidden when printing.
+
+## Report, export and flagged payments (owner)
+
+- **Report** (Pay at the table → Report):
+  - Shows, per business day (`BUSINESS_TIMEZONE`, default `Asia/Jerusalem`), the bills, payments, money collected and tips paid through the app. Real and test payments are shown separately.
+  - Cash and card payments at the till are not included.
+  - The range is up to 92 days.
+- **CSV export:**
+  - One row per payment: time, table, amount, tip, total, provider, mode, reference and review state.
+  - It is written for Excel: UTF-8 with a BOM, and cells that could start a formula get a `'` prefix (CSV injection).
+  - It contains no payer details, because MenuAI has none. Each export is recorded in the audit log.
+- **Flagged payments:**
+  - A payment that arrived after the bill was paid, closed or cancelled shows ⚠️ until the owner refunds it in the provider's dashboard and clicks **Mark as handled**, with a short note.
+  - The note and who handled it are kept, and the action is audited.
+  - A flagged payment that is refunded in full from here (see below) is marked handled automatically.
+
+## Refunds (owner)
+
+On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the amount (it starts at what is left to refund) and an optional reason, then confirm.
+
+- **Limits (server-enforced):**
+  - at most what was charged (share + tip), minus refunds that went through;
+  - only through the provider and mode the payment was made with. After switching provider or mode, refund in the old provider's dashboard and mark the payment handled;
+  - **one refund at a time per payment** (row lock + a unique index), so a double click can't refund twice;
+  - Grow's rules: on the day of the payment only the whole amount (it is a cancellation); at most 2 refunds per payment through the API;
+  - owner only, rate limited (10 per minute), every step audited (`payment.refund_requested`, `…_succeeded` / `…_failed` / `…_unknown`, `…_confirmed`).
+- **Outcomes:**
+  - **Refunded:** the provider accepted it. Its reference is shown when it returns one.
+  - **Refused:** the provider said no (e.g. not enough balance). Nothing was refunded; only the error code is kept.
+  - **Unknown:** the connection failed mid-call, so it may or may not have happened. **It is never retried automatically.** The bill stays in the open list until the owner checks the provider's dashboard and clicks **It was refunded** or **It was not refunded**. No new refund is possible on that payment until then. A refund interrupted by a restart shows up the same way after 2 minutes.
+- A refund doesn't reopen the bill: it is an adjustment after payment. If the guest has to pay again, open a new bill.
+- The **report** has a **Refunded** column per business day (the day of the refund, which can differ from the day of the payment). The **CSV** has a `refunded` column per payment.
+- Refund confirmations from the provider (email to the guest, a credit invoice) follow the provider's own settings. ⚖️ Whether a credit document must be issued is a question for the accountant.
+
+| Provider | Call | Source |
+|---|---|---|
+| Grow | `refundTransaction` (multipart: `userId`, `transactionId`, `transactionToken`, `refundSum`, `pageCode`). Only Grow's `status: 1` counts as refunded. The response layout is not published, so no refund reference is read. | Grow docs: Refund Transaction, Refund overview |
+| PayPlus | `Transactions/RefundByTransactionUID` (JSON: `transaction_uid`, `amount`; `api-key` + `secret-key`). `results.status` success, with the refund's `status_code` 000 when present. | PayPlus docs: Refund by transaction UID |
+
+## Ordering from the menu (Phase 3e)
+
+Guests at a table can order dishes from the menu. **A waiter accepts every order**, and only then is it added to the table's bill, which is paid in the usual way. Ordering itself charges nothing.
+
+- **Turning it on** (owner): Pay at the table → **Orders** → "Let guests order from the menu". It works at tables linked to a **published** menu in shekels.
+- **On the menu**, opened from the table page on the tablet or a phone:
+  - each dish (and each size) the server offers gets a **+ Add** button;
+  - a **🛒 My order** button opens the cart: quantities, a note for the kitchen, the total, and **Send the order**;
+  - the cart then shows the order's status: waiting, accepted and added to the bill, or not accepted (with the waiter's reason).
+- **Staff** (editors): **Orders** lists waiting orders, refreshing every 5 seconds, with a screen-reader announcement when new ones arrive. Each order can be:
+  - **Accepted and added to the bill:** its total joins the table's open bill, or a new bill is opened.
+  - **Rejected:** with an optional reason the guest sees.
+- **Money and safety rules (server-enforced):**
+  - **prices** never come from the browser: they are computed from the menu's live published version, in agorot, and the draft is never used;
+  - **dishes that can't be ordered:** hidden, sold-out or unpriced dishes, and unknown sizes, are refused;
+  - **limits:** up to 30 lines, 20 of each dish, and a note of up to 140 characters (plain text, shown escaped). At most 5 orders can wait per table, and each IP can send 30 orders a minute (a restaurant's tablets often share one IP);
+  - **double taps:** a per-order key means a double tap or a retry creates one order;
+  - **origin:** posting needs our own origin (the global CSRF check), and the published page's CSP allows `connect-src 'self'` only;
+  - **audit:** every accept and reject is audited.
+- **If a printed QR code leaks** and orders start arriving from outside the restaurant, reject them and use **Replace QR code** on the table.
+- ⚖️ Allergen information stays the restaurant's responsibility: the cart makes no claims.
+
+## Receipts
+
+MenuAI **does not issue receipts or tax invoices**. Turn on the provider's invoice module, or the accounting system linked to it, in the provider's dashboard. ⚖️ Your accountant decides the document type. When the provider reports the document, MenuAI keeps its number and link:
+- **The guest's result page** shows **🧾 View receipt** (opens in a new tab) once it has arrived. The link is shown only to the device that paid.
+- **The staff screen** shows the receipt number with its link, and the **CSV** has a `receipt` column.
+- **PayPlus** reports the document inside the signed callback (`invoice`). Only an issued document (`status: Success`) with an `https` link is kept.
+- **Grow** posts it to a separate address (`invoiceNotifyUrl`), which MenuAI creates per payment: `/api/payments/receipt/grow/<payment>/<random key>`. That call is not signed, so it counts only if:
+  - the key matches;
+  - the body matches the payment's `processId`, and its `transactionId` when we have it;
+  - the link is `https` on Grow's own domains.
+
+  The key is redacted from the server and nginx logs.
+- Only the first receipt is kept for each payment.
+- Grow's receipt format isn't documented: JSON and form fields are both accepted. Confirm it in the sandbox run.
+
+## Grow: how it works here
+
+| Step | MenuAI does | Source |
+|---|---|---|
+| Checkout | `createPaymentProcess` from the server with `userId`, `pageCode`, `sum` (decimal), `successUrl`, `cancelUrl`, `notifyUrl`, `description` (letters, digits and spaces only), `pageField[fullName]`, `pageField[phone]`, `cField1` = our payment id. It redirects the guest only to an `https` page on `*.meshulam.co.il`, `*.grow.link` or `*.grow.business`. | Grow docs: Regular Payment |
+| Server update | Accepted at `/api/payments/notify/grow` as form fields (`data[...]`, multipart or urlencoded, max 32 KB). It must carry the `processId` + `processToken` we stored (compared in constant time). Otherwise it is ignored. | Grow docs: Server Response |
+| Confirmation | `getPaymentProcessInfo` (server → Grow). The payment counts only with `statusCode` 2 and `sum` equal to the requested amount. Anything else, including an unknown response layout, stays pending. | Grow docs (response layout not published: parsed conservatively) |
+| Acknowledgement | `approveTransaction` with the fields from the update. If it fails, the payment stays recorded and Grow resends the update (at 10, 20 and 30 minutes). | Grow docs: Approve Transaction |
+| Grow unreachable | The notification gets `503` and Grow retries. The guest's result page says "confirming…". | |
+| Payer name and phone | Passed to Grow and **never stored** by MenuAI (a test checks the database). | |
+| Receipt | `invoiceNotifyUrl` = a per-payment address with a random key. Grow posts `transactionId`, `processId`, `invoiceNumber`, `invoiceUrl` there once its invoice module issued the document. Kept only on a full match (see Receipts). | Grow docs: Invoice Server Response |
+| Terms | If the owner sets a payment-terms link, guests must tick "I accept the payment terms" (enforced on the server). Grow's production review requires this. | Grow docs: Transition to Production |
+
+## PayPlus: how it works here
+
+| Step | MenuAI does | Source |
+|---|---|---|
+| Checkout | `PaymentPages/generateLink` is called from the server with the `api-key` and `secret-key` headers. It sends `payment_page_uid`, `charge_method` 1 (charge), `amount` in shekels, `currency_code` ILS, `language_code` (he/en), `expiry_datetime` 20 minutes (the reservation), the success/failure/cancel/callback URLs, and `more_info` = our payment id. No payer details are sent: PayPlus's page collects what it needs. The guest is redirected only to an `https` page on `*.payplus.co.il`. | PayPlus docs: Generate Payment Link |
+| Callback | Accepted at `/api/payments/notify/payplus` as JSON. It is trusted only if `user-agent` is `PayPlus` and the `hash` header equals base64(HMAC-SHA256(secret key, **exact raw body**)), compared in constant time. It must match our `page_request_uid`. `status_code` 000 with the exact amount counts as paid; another code counts as declined. Card, ID and customer fields are never read. | PayPlus docs: Validate Requests, Transaction Callback |
+| Receipt | When an invoice company is connected, the signed callback carries `invoice` (`docu_number`, `original_url`, `status`). `initial_invoice` is not sent, so the payment page's own setting applies. | PayPlus docs: Transaction Callback |
+| Return before the callback | `PaymentPages/ipn` with our `payment_request_uid`. The response layout is not published, so only an approved record for *this* page request, with the exact amount, counts. | PayPlus docs: IPN |
+| Late payment | The page expires after 20 minutes, which is when a reservation can be released. Any charge that still arrives is recorded and flagged for refund or review. | |
+
+## PayPlus sandbox run (before going live)
+
+1. Get **staging** (dev) credentials from PayPlus: the API key, the secret key and the payment page UID. Set the page's callback to be allowed. Enter them only in **Settings**.
+2. Settings: choose **PayPlus**, mode **Test**, add the terms link, and turn it on.
+3. Pay a bill with PayPlus's sandbox card **5326-1402-8077-9844** (05/30, CVV 000), and check:
+   - the staff screen shows **Paid** with the approval number;
+   - the bill closes;
+   - PayPlus's dashboard shows the transaction.
+4. Try the rejected card **5326-1402-0001-0120**. Nothing is charged, and the guest can try again. Then test a split, a tip, a cancel, and two phones paying at once.
+5. Refund part of a test payment, then the rest, from the bills screen. Check that both show as **Refunded** and that PayPlus's dashboard shows them.
+   If an invoice company is connected in the sandbox, check that the guest's result page and the staff screen show **🧾 Receipt** with the right document.
+6. Add `payplus` to `PAYMENTS_LIVE_PROVIDERS`, restart, enter the **production** credentials and switch to **Live**.
+
+## Grow sandbox run (before going live)
+
+Grow sends server updates only to a public HTTPS address (not localhost), so run this on the real server in **test** mode:
+
+1. Ask Grow (`apisupport@grow.business`) for **sandbox** `userId` and `pageCode`, and for server updates to be enabled. Never put them in files or chat: enter them only in **Settings**.
+2. Settings: provider **Grow**, mode **Test**, enter the identifiers and the payment-terms link, then turn it on.
+3. Open a bill and pay from a phone with Grow's sandbox test card `4580458045804580`. Check that:
+   - the staff screen shows **Paid**, with the reference number;
+   - the bill closes when it is fully paid;
+   - the transaction appears as approved in Grow's sandbox dashboard.
+4. Also check:
+   - a split between two phones;
+   - a tip;
+   - cancelling on Grow's page (you return to the table page and nothing is charged);
+   - two phones paying the whole bill at once (the second is refused).
+5. Receipts (when Grow's invoice module is on): within a minute or so, the staff screen shows **🧾 Receipt** for the payment. Reloading the guest's result page shows it too. If not, check `payment_events` for `receipt` entries and the format Grow sent.
+   Refunds: refund a payment made **today** in full (a cancellation). Check that a partial refund of today's payment is refused with a clear message. The next day, refund part of another payment. Check both in Grow's dashboard. If Grow's refund response has a reference field, note it for a follow-up.
+6. Bit, Apple Pay and Google Pay have no sandbox at Grow and charge real money. Test them in live mode with small amounts.
+7. If anything does not match, export `payment_events` for the time of the test (it holds no personal data), and keep the request ids from the server log.
+8. Request Grow's production review. Then:
+   - add `grow` to `PAYMENTS_LIVE_PROVIDERS` in `.env` (e.g. `PAYMENTS_LIVE_PROVIDERS=grow`) and restart;
+   - enter the **production** identifiers;
+   - switch the mode to **Live**.
 
 ## Before going live (see also [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) §14)
 

@@ -31,7 +31,7 @@ const T = {
     fullName: 'שם מלא', phone: 'טלפון נייד',
     total: 'לתשלום', payNow: 'לתשלום מאובטח', secure: 'התשלום מתבצע בעמוד המאובטח של חברת הסליקה. פרטי הכרטיס לא עוברים דרכנו ולא נשמרים אצלנו.',
     testMode: 'מצב בדיקה: לא יחויב כסף אמיתי.',
-    doneTitle: 'תודה! התשלום התקבל', doneText: 'שולם', back: 'חזרה לשולחן',
+    doneTitle: 'תודה! התשלום התקבל', doneText: 'שולם', back: 'חזרה לשולחן', receipt: 'לקבלה',
     pendingTitle: 'מאמתים את התשלום…', pendingText: 'זה לוקח בדרך כלל כמה שניות. העמוד יתעדכן לבד.',
     pendingLong: 'האימות לוקח יותר מהרגיל. אם חויבתם, הצוות יראה את התשלום ברגע שיאומת.',
     failedTitle: 'התשלום לא הושלם', failedText: 'לא חויבתם. אפשר לנסות שוב.', tryAgain: 'לנסות שוב',
@@ -39,9 +39,11 @@ const T = {
       nothing_to_pay: 'אין יתרה לתשלום בחשבון הזה.', invalid_share: 'הסכום לא תקין. בדקו שהוא בין ₪1 ליתרה.',
       invalid_tip: 'הטיפ לא תקין.', invalid_payer: 'נא למלא שם מלא (שם פרטי ומשפחה) וטלפון נייד תקין.',
       provider_unavailable: 'חברת הסליקה לא זמינה כרגע. נסו שוב בעוד רגע.', bad_request: 'משהו בטופס לא תקין. נסו שוב.',
+      terms_required: 'כדי לשלם צריך לאשר את תנאי התשלום.',
     },
     demoTitle: 'עמוד תשלום לדוגמה', demoText: 'זהו ספק ההדגמה של MenuAI. בעמוד אמיתי כאן יוזנו פרטי הכרטיס אצל חברת הסליקה.',
     approve: 'אישור התשלום', decline: 'דחיית התשלום',
+    agree: 'קראתי ואני מאשר/ת את', terms: 'תנאי התשלום', newTab: '(נפתח בלשונית חדשה)',
     notFoundTitle: 'הקוד של השולחן לא פעיל', notFoundText: 'ייתכן שהקוד הוחלף. בקשו מהצוות קוד עדכני.',
   },
   en: {
@@ -56,7 +58,7 @@ const T = {
     fullName: 'Full name', phone: 'Mobile phone',
     total: 'Total', payNow: 'Pay securely', secure: 'You pay on the payment company’s secure page. Card details never pass through us and are not stored here.',
     testMode: 'Test mode: no real money will be charged.',
-    doneTitle: 'Thank you! Payment received', doneText: 'Paid', back: 'Back to the table',
+    doneTitle: 'Thank you! Payment received', doneText: 'Paid', back: 'Back to the table', receipt: 'View receipt',
     pendingTitle: 'Confirming your payment…', pendingText: 'This usually takes a few seconds. The page updates by itself.',
     pendingLong: 'Confirmation is taking longer than usual. If you were charged, the staff will see the payment as soon as it is confirmed.',
     failedTitle: 'The payment was not completed', failedText: 'You were not charged. You can try again.', tryAgain: 'Try again',
@@ -64,9 +66,11 @@ const T = {
       nothing_to_pay: 'There is nothing left to pay on this bill.', invalid_share: 'That amount is not valid. It must be between ₪1 and the balance.',
       invalid_tip: 'That tip is not valid.', invalid_payer: 'Please enter your full name (first and last) and a valid mobile number.',
       provider_unavailable: 'The payment company is not available right now. Please try again in a moment.', bad_request: 'Something in the form is not valid. Please try again.',
+      terms_required: 'Please accept the payment terms to pay.',
     },
     demoTitle: 'Demo payment page', demoText: 'This is MenuAI’s demo provider. On a real page, card details are entered here, at the payment company.',
     approve: 'Approve payment', decline: 'Decline payment',
+    agree: 'I have read and accept the', terms: 'payment terms', newTab: '(opens in a new tab)',
     notFoundTitle: 'This table code is not active', notFoundText: 'The code may have been replaced. Please ask the staff for the current one.',
   },
   ar: {
@@ -81,7 +85,7 @@ const T = {
     fullName: 'الاسم الكامل', phone: 'الهاتف المحمول',
     total: 'للدفع', payNow: 'الدفع الآمن', secure: 'يتم الدفع في صفحة شركة الدفع الآمنة. تفاصيل البطاقة لا تمر عبرنا ولا تُحفظ لدينا.',
     testMode: 'وضع التجربة: لن يتم خصم أموال حقيقية.',
-    doneTitle: 'شكرًا! تم استلام الدفع', doneText: 'مدفوع', back: 'العودة إلى الطاولة',
+    doneTitle: 'شكرًا! تم استلام الدفع', doneText: 'مدفوع', back: 'العودة إلى الطاولة', receipt: 'عرض الإيصال',
     pendingTitle: 'جارٍ تأكيد الدفع…', pendingText: 'يستغرق ذلك عادةً بضع ثوانٍ. ستتحدّث الصفحة تلقائيًا.',
     pendingLong: 'يستغرق التأكيد وقتًا أطول من المعتاد. إذا تم الخصم، سيرى الطاقم الدفع فور تأكيده.',
     failedTitle: 'لم تكتمل عملية الدفع', failedText: 'لم يتم خصم أي مبلغ. يمكنكم المحاولة مرة أخرى.', tryAgain: 'المحاولة مرة أخرى',
@@ -89,9 +93,11 @@ const T = {
       nothing_to_pay: 'لا يوجد مبلغ متبقٍ للدفع في هذا الحساب.', invalid_share: 'المبلغ غير صالح. يجب أن يكون بين ₪1 والمبلغ المتبقي.',
       invalid_tip: 'الإكرامية غير صالحة.', invalid_payer: 'يرجى إدخال الاسم الكامل (الاسم الأول واسم العائلة) ورقم هاتف محمول صالح.',
       provider_unavailable: 'شركة الدفع غير متاحة حاليًا. حاولوا مرة أخرى بعد قليل.', bad_request: 'هناك خطأ في النموذج. حاولوا مرة أخرى.',
+      terms_required: 'يرجى الموافقة على شروط الدفع لإتمام الدفع.',
     },
     demoTitle: 'صفحة دفع تجريبية', demoText: 'هذا مزوّد العرض التجريبي من MenuAI. في الصفحة الحقيقية تُدخل تفاصيل البطاقة هنا لدى شركة الدفع.',
     approve: 'تأكيد الدفع', decline: 'رفض الدفع',
+    agree: 'قرأت وأوافق على', terms: 'شروط الدفع', newTab: '(يفتح في علامة تبويب جديدة)',
     notFoundTitle: 'رمز الطاولة غير فعّال', notFoundText: 'ربما تم استبدال الرمز. اطلبوا من الطاقم الرمز الحالي.',
   },
 } satisfies Record<GuestLocale, unknown>;
@@ -139,6 +145,7 @@ input[type=text],input[type=tel],input[type=number],select{font:inherit;color:in
 .sub input,.sub select{width:auto;min-width:7rem}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;min-height:52px;padding:.75rem 1.25rem;border-radius:12px;border:0;font:inherit;font-weight:800;text-decoration:none;cursor:pointer;background:var(--accent);color:var(--accent-ink);width:100%}
 .btn.secondary{background:transparent;color:var(--ink);border:1.5px solid var(--line);width:auto;min-height:44px;font-weight:700}
+.btn+.btn{margin-top:.75rem}
 a{color:inherit}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .total{display:flex;justify-content:space-between;align-items:baseline;font-size:1.25rem;font-weight:800;margin:.25rem 0 1rem}
 .note{font-size:.92rem;color:var(--muted);margin:.75rem 0 0}
@@ -146,6 +153,8 @@ a{color:inherit}a:focus-visible,button:focus-visible,input:focus-visible,select:
 .error{border:2px solid var(--bad);color:var(--bad);border-radius:12px;padding:.6rem .8rem;margin:0 0 1rem;font-weight:700}
 .status{font-size:3rem;line-height:1;margin:.5rem 0}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.opt input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent);flex:none}
 footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:2rem}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
@@ -220,6 +229,7 @@ export interface TablePageInput {
         tipPercents: number[];
         requiresPayer: boolean;
         testMode: boolean;
+        termsUrl: string | null;
         error?: GuestErrorCode;
         values?: Record<string, string>;
       };
@@ -284,6 +294,8 @@ ${tips}
 </fieldset>
 ${payer}
 <p class="total"><span>${esc(s.total)}</span><span id="total" aria-live="polite">${money(st.remaining, p.locale)}</span></p>
+${st.termsUrl ? `<p class="opt"><input type="checkbox" id="agree" name="agree" value="yes" required${v.agree === 'yes' ? ' checked' : ''}>
+<label for="agree">${esc(s.agree)} <a href="${esc(st.termsUrl)}" target="_blank" rel="noopener noreferrer">${esc(s.terms)}<span class="visually-hidden"> ${esc(s.newTab)}</span></a></label></p>` : ''}
 <button class="btn" type="submit">🔒 ${esc(s.payNow)}</button>
 <p class="note">${esc(s.secure)}</p>
 </form>`;
@@ -293,12 +305,15 @@ ${payer}
 export function resultPage(
   l: GuestLocale,
   backHref: string,
-  r: { kind: 'paid'; agorot: number } | { kind: 'pending'; long: boolean } | { kind: 'failed' },
+  r: { kind: 'paid'; agorot: number; receiptUrl?: string | null } | { kind: 'pending'; long: boolean } | { kind: 'failed' },
 ): string {
   const s = t(l);
   if (r.kind === 'paid') {
     return layout(l, s.doneTitle, `<div class="card" role="status"><p class="status ok" aria-hidden="true">✓</p><h1>${esc(s.doneTitle)}</h1>
-<dl><dt>${esc(s.doneText)}</dt><dd>${money(r.agorot, l)}</dd></dl></div><a class="btn secondary" href="${esc(backHref)}">${esc(s.back)}</a>`);
+<dl><dt>${esc(s.doneText)}</dt><dd>${money(r.agorot, l)}</dd></dl></div>${
+      // The provider's document link (https only, checked when it was stored); opens outside our page.
+      r.receiptUrl ? `<a class="btn" href="${esc(r.receiptUrl)}" target="_blank" rel="noopener noreferrer">🧾 ${esc(s.receipt)}<span class="visually-hidden"> ${esc(s.newTab)}</span></a>` : ''
+    }<a class="btn secondary" href="${esc(backHref)}">${esc(s.back)}</a>`);
   }
   if (r.kind === 'pending') {
     return layout(

@@ -7,6 +7,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import menuCss from '../styles/menu.css?raw';
 import runtimeSource from '../renderer/menuRuntime.js?raw';
+import tablePaySource from '../renderer/tablePay.js?raw';
+import tableOrderSource from '../renderer/tableOrder.js?raw';
 import { MenuRenderer } from '../renderer/MenuRenderer';
 import { MEDIA_SRC_RE, type Menu } from './schema';
 import { mapMenuImages } from './menuImages';
@@ -76,7 +78,12 @@ export async function sha256Base64(text: string): Promise<string> {
 
 export function runtimeScript(): string {
   const body = runtimeSource.replace(/^export\s+function/m, 'function');
-  return `(function(){${body}\ninitMenuRuntime(document.body,{syncUrl:true});})();`;
+  // The pay button only appears on menus served from a MenuAI server (/m/…) opened from a table page.
+  const strip = (src: string) => src.replace(/^\/\*![\s\S]*?\*\/\s*/, '').replace(/^export\s+function/m, 'function');
+  const pay = strip(tablePaySource);
+  // Ordering (cart) appears only when the server has it on for this table (tableOrder.js asks).
+  const order = strip(tableOrderSource);
+  return `(function(){${body}\ninitMenuRuntime(document.body,{syncUrl:true});\n${pay}\n${order}\nvar maPay=initTablePay(document);if(maPay)initTableOrder(document,maPay.getAttribute('data-ma-table'));})();`;
 }
 
 /** Builds a single, self-contained HTML file with every language of the menu. */
@@ -124,6 +131,8 @@ export async function exportMenuHtml(source: Menu, options: ExportOptions): Prom
     "style-src 'unsafe-inline'",
     'font-src data:',
     `script-src 'sha256-${scriptHash}'`,
+    // The table cart (tableOrder.js) talks to its own server only; a downloaded file has no server.
+    "connect-src 'self'",
     "base-uri 'none'",
     "form-action 'none'",
   ].join('; ');

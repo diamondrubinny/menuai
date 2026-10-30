@@ -185,4 +185,99 @@ CREATE TABLE payment_events (
 CREATE INDEX payment_events_at ON payment_events (at);
 `,
   },
+  {
+    id: '0004_payment_terms',
+    sql: `
+-- The restaurant's payment terms page; when set, guests must accept it before paying (Grow's review requires it).
+ALTER TABLE payment_settings ADD COLUMN terms_url text CHECK (terms_url ~ '^https://' AND length(terms_url) <= 500);
+`,
+  },
+  {
+    id: '0005_payment_review',
+    sql: `
+-- Staff close the loop on a flagged payment (refunded in the provider's dashboard, or reviewed).
+ALTER TABLE payments ADD COLUMN review_resolved_at timestamptz;
+ALTER TABLE payments ADD COLUMN review_resolved_by uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE payments ADD COLUMN review_note text CHECK (length(review_note) <= 200);
+CREATE INDEX payments_paid_at ON payments (paid_at) WHERE status = 'paid';
+`,
+  },
+  {
+    id: '0006_payplus',
+    sql: `
+ALTER TABLE payment_settings DROP CONSTRAINT IF EXISTS payment_settings_provider_check;
+ALTER TABLE payment_settings ADD CONSTRAINT payment_settings_provider_check CHECK (provider IN ('fake', 'grow', 'payplus'));
+`,
+  },
+  {
+    id: '0007_payment_refunds',
+    sql: `
+-- Refunds made through the provider's API (owner only). No card or payer data.
+CREATE TABLE payment_refunds (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id uuid NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+  amount_agorot integer NOT NULL CHECK (amount_agorot > 0),
+  -- unknown = the provider call failed in transit: the owner checks the provider's dashboard and confirms.
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'succeeded', 'failed', 'unknown')),
+  provider_refund_ref text CHECK (length(provider_refund_ref) <= 100),
+  error_code text CHECK (length(error_code) <= 80),
+  note text NOT NULL DEFAULT '' CHECK (length(note) <= 200),
+  requested_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  completed_at timestamptz
+);
+CREATE INDEX payment_refunds_payment ON payment_refunds (payment_id);
+CREATE INDEX payment_refunds_completed ON payment_refunds (completed_at) WHERE status = 'succeeded';
+-- At most one refund in flight per payment: a second one could refund twice.
+CREATE UNIQUE INDEX payment_refunds_one_open ON payment_refunds (payment_id) WHERE status IN ('pending', 'unknown');
+`,
+  },
+  {
+    id: '0008_payment_receipts',
+    sql: `
+-- The business's receipt, issued by the provider's invoice module (MenuAI issues none): number and link.
+ALTER TABLE payments ADD COLUMN receipt_number text CHECK (length(receipt_number) <= 60);
+ALTER TABLE payments ADD COLUMN receipt_url text CHECK (receipt_url ~ '^https://' AND length(receipt_url) <= 500);
+`,
+  },
+  {
+    id: '0009_orders',
+    sql: `
+-- Ordering from the published menu: the owner turns it on; a waiter accepts each order into the bill.
+ALTER TABLE payment_settings ADD COLUMN ordering_enabled boolean NOT NULL DEFAULT false;
+CREATE TABLE orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  table_id uuid NOT NULL REFERENCES dining_tables(id) ON DELETE RESTRICT,
+  menu_id uuid REFERENCES menus(id) ON DELETE SET NULL,
+  -- The published version the prices came from.
+  version_id uuid REFERENCES menu_versions(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'accepted', 'rejected')),
+  total_agorot integer NOT NULL CHECK (total_agorot BETWEEN 100 AND 10000000),
+  locale text NOT NULL CHECK (length(locale) <= 10),
+  idempotency_key text NOT NULL CHECK (idempotency_key ~ '^[A-Za-z0-9_-]{16,64}$'),
+  reject_reason text CHECK (length(reject_reason) <= 140),
+  bill_id uuid REFERENCES bills(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz,
+  decided_by uuid REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX orders_idempotency ON orders (table_id, idempotency_key);
+CREATE INDEX orders_table_created ON orders (table_id, created_at DESC);
+CREATE INDEX orders_new ON orders (created_at) WHERE status = 'new';
+-- Names are snapshots in the guest's language (the menu can change later). No personal data.
+CREATE TABLE order_lines (
+  order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  position smallint NOT NULL CHECK (position BETWEEN 0 AND 29),
+  item_id text NOT NULL CHECK (length(item_id) <= 40),
+  variant_id text CHECK (length(variant_id) <= 40),
+  name text NOT NULL CHECK (length(name) <= 200),
+  variant_label text CHECK (length(variant_label) <= 100),
+  unit_agorot integer NOT NULL CHECK (unit_agorot >= 0),
+  qty smallint NOT NULL CHECK (qty BETWEEN 1 AND 20),
+  note text NOT NULL DEFAULT '' CHECK (length(note) <= 140),
+  PRIMARY KEY (order_id, position)
+);
+`,
+  },
 ];

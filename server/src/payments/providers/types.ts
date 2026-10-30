@@ -10,7 +10,7 @@
  * Trust rule: a browser redirect or a provider notification is only a *hint*. A payment becomes
  * "paid" only after `fetchStatus` confirms it server-to-server, for the exact amount we asked for.
  */
-export const PROVIDER_IDS = ['fake', 'grow'] as const;
+export const PROVIDER_IDS = ['fake', 'grow', 'payplus'] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 export type PaymentMode = 'test' | 'live';
 
@@ -22,6 +22,20 @@ export interface Payer {
   phone: string;
 }
 
+/** The business's receipt / tax document, issued by the provider's invoice module (never by MenuAI). */
+export interface Receipt {
+  number: string | null;
+  /** https link to the document at the provider or its invoice company. */
+  url: string;
+}
+
+/** A receipt notification that is not part of the payment notification (Grow's invoiceNotifyUrl). Untrusted. */
+export interface ReceiptNotification {
+  receipt: Receipt;
+  /** Must equal the stored identifiers of the payment it claims to be about. */
+  match: ProviderRef;
+}
+
 export interface SessionRequest {
   paymentId: string;
   amountAgorot: number;
@@ -31,6 +45,8 @@ export interface SessionRequest {
   successUrl: string;
   cancelUrl: string;
   notifyUrl: string;
+  /** Where the provider posts the receipt once issued, for providers with a separate receipt callback. */
+  receiptNotifyUrl?: string;
   locale: string;
 }
 
@@ -45,6 +61,10 @@ export interface VerifiedStatus {
   amountAgorot?: number;
   /** The provider's transaction reference (shown to staff for reconciliation). */
   transactionRef?: string;
+  /** The provider's handles needed to refund this charge later (stored with the payment; never card data). */
+  refundRef?: ProviderRef;
+  /** The receipt, when the provider reports it together with the outcome (only from signed sources). */
+  receipt?: Receipt;
 }
 
 export interface Notification {
@@ -52,6 +72,39 @@ export interface Notification {
   paymentId?: string;
   /** Raw fields to echo back in an acknowledgement (Grow approveTransaction). Untrusted. */
   fields: Record<string, string>;
+  /**
+   * Set only by providers that cryptographically sign their notifications (e.g. PayPlus HMAC), after
+   * the signature checked out: the outcome then needs no extra status call. It is still matched to
+   * the stored payment and must carry the exact amount.
+   */
+  signedStatus?: VerifiedStatus;
+  /** Refund handles carried by a notification that matched the stored payment (see VerifiedStatus.refundRef). */
+  refundRef?: ProviderRef;
+}
+
+/** The raw request, for providers that sign their notifications. */
+export interface NotificationContext {
+  rawBody?: string;
+  headers: Record<string, string | string[] | undefined>;
+}
+
+export interface RefundRequest {
+  amountAgorot: number;
+  /** Our refund id (for the provider's logs where it takes one). */
+  refundId: string;
+}
+
+export interface RefundResult {
+  /** The provider's reference for the refund, when it returns one. */
+  refundRef?: string;
+}
+
+/** Provider limits checked before a refund is attempted. */
+export interface RefundPolicy {
+  /** Most refunds the provider allows per charge through its API. */
+  maxRefunds?: number;
+  /** Whether a partial refund is possible on the business day of the charge (Grow: no, it is a cancellation). */
+  partialSameDay: boolean;
 }
 
 export interface PaymentProvider {
@@ -62,12 +115,27 @@ export interface PaymentProvider {
   readonly requiresPayer: boolean;
   createSession(req: SessionRequest): Promise<Session>;
   /** Reads a server-to-server notification. Returns null when it is not one of ours. */
-  parseNotification(body: unknown): Notification | null;
+  parseNotification(body: unknown, ctx?: NotificationContext): Notification | null;
   /** True when this notification belongs to the stored payment (e.g. its process token matches). */
   matches(ref: ProviderRef, notification: Notification): boolean;
   fetchStatus(ref: ProviderRef): Promise<VerifiedStatus>;
   /** Tells the provider the notification was handled, when it requires that (after a verified payment). */
   acknowledge?(ref: ProviderRef, notification: Notification): Promise<void>;
+  /** Refund limits, present when the provider supports refunds through its API. */
+  readonly refundPolicy?: RefundPolicy;
+  /**
+   * Refunds part or all of a confirmed charge. Resolves only when the provider accepted the refund.
+   * Throws ProviderError(retryable = false) when the provider refused it, and a retryable one when
+   * the outcome is unknown (network error, timeout, 5xx): the refund may have happened, so it must
+   * never be retried automatically.
+   */
+  refund?(ref: ProviderRef, req: RefundRequest): Promise<RefundResult>;
+  /** Whether the stored identifiers include what `refund` needs (checked before anything is recorded). */
+  refundable?(ref: ProviderRef): boolean;
+  /** True when the provider posts receipts to `receiptNotifyUrl` (a separate, unsigned callback). */
+  readonly receiptCallback?: boolean;
+  /** Reads a receipt callback. Null when it is not a well-formed receipt from this provider. */
+  parseReceipt?(body: unknown): ReceiptNotification | null;
 }
 
 export class ProviderError extends Error {

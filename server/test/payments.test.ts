@@ -18,6 +18,7 @@ import { safeUrl } from '../src/app';
 import { applyRetention } from '../src/maintenance/retention';
 import { createMediaStore } from '../src/uploads/store';
 import { createHash } from 'node:crypto';
+import { createSampleMenu } from '../../src/core/sample';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -86,6 +87,7 @@ describe('config', () => {
     expect(safeUrl('/t/AbCdEfGhIjKlMnOpQrStUv/done/1?lang=he')).toBe('/t/[table]/done/1?[redacted]');
     expect(safeUrl('/t/AbCdEfGhIjKlMnOpQrStUv')).toBe('/t/[table]');
     expect(safeUrl('/m/lumiere')).toBe('/m/lumiere');
+    expect(safeUrl(`/api/payments/receipt/grow/${'1'.repeat(36)}/${'a'.repeat(32)}`)).toBe('/api/payments/receipt/grow/[redacted]');
   });
   it('sends providers plain descriptions', () => {
     expect(plainDescription('Café <Lumière> table #7!')).toBe('Café Lumière table 7');
@@ -190,7 +192,7 @@ describe('pay at the table', () => {
 
   it('validates settings: demo is test-only, providers must be available, tips are normalized', async () => {
     expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'live', tipPercents: [] })).json()).toEqual({ error: 'demo_is_test_only' });
-    expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'grow', mode: 'test', tipPercents: [] })).json()).toEqual({ error: 'provider_unavailable' });
+    expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'grow', mode: 'test', tipPercents: [] })).json()).toEqual({ error: 'credentials_required' });
     expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'test', tipPercents: [80] })).statusCode).toBe(400);
     await enable();
     const res = (await call('GET', '/api/payments/settings', 'owner')).json();
@@ -415,6 +417,145 @@ describe('pay at the table', () => {
     expect(res.body).not.toContain('NaN');
   });
 
+  it('requires accepting the payment terms when the owner set a terms page', async () => {
+    const put = (termsUrl: unknown) =>
+      call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'test', tipPercents: [10], termsUrl });
+    expect((await put('http://example.com/terms')).statusCode).toBe(400);
+    expect((await put('javascript:alert(1)')).statusCode).toBe(400);
+    expect((await put('https://lumiere.example/terms?x="<b>')).statusCode).toBe(200);
+    const t = await table();
+    await openBill(t.id, 10000);
+    const page = await call('GET', t.path, 'guest');
+    expect(page.body).toContain('name="agree"');
+    expect(page.body).toContain('href="https://lumiere.example/terms?x=&quot;&lt;b&gt;"');
+    const refused = await form(`${t.path}/pay`, { share: 'full' });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).toContain('צריך לאשר את תנאי התשלום');
+    await checkout(t.path, { share: 'full', agree: 'yes' });
+    expect((await call('GET', '/api/payments/settings', 'owner')).json().settings.termsUrl).toBe('https://lumiere.example/terms?x="<b>');
+  });
+
+  it('reports paid money by the business\'s calendar day (Israel time), owner only', async () => {
+    await enable();
+    const t = await table();
+    await openBill(t.id, 20000);
+    const one = await checkout(t.path, { share: 'custom', shareAmount: '100', tip: '10' });
+    await provider(one.demoPath, 'paid');
+    const two = await checkout(t.path, { share: 'full' });
+    await provider(two.demoPath, 'paid');
+    // 23:30 on 28 Oct and 00:30 on 29 Oct in Israel (UTC+2 after daylight saving ends).
+    await db.query("UPDATE payments SET paid_at = '2026-10-28T21:30:00Z' WHERE id = $1", [one.paymentId]);
+    await db.query("UPDATE payments SET paid_at = '2026-10-28T22:30:00Z' WHERE id = $1", [two.paymentId]);
+    const res = await call('GET', '/api/payments/report?from=2026-10-28&to=2026-10-29', 'owner');
+    expect(res.json()).toMatchObject({
+      timezone: 'Asia/Jerusalem',
+      days: [
+        { date: '2026-10-28', mode: 'test', bills: 1, payments: 1, collectedAgorot: 10000, tipsAgorot: 1000, openReviews: 0 },
+        { date: '2026-10-29', mode: 'test', bills: 1, payments: 1, collectedAgorot: 10000, tipsAgorot: 0, openReviews: 0 },
+      ],
+    });
+    expect((await call('GET', '/api/payments/report?from=2026-10-28&to=2026-10-29', 'editor')).statusCode).toBe(403);
+    for (const q of ['from=2026-10-29&to=2026-10-28', 'from=2026-01-01&to=2026-06-01', 'from=2026-02-30&to=2026-03-01', 'from=x&to=y', '']) {
+      expect((await call('GET', `/api/payments/report?${q}`, 'owner')).statusCode).toBe(400);
+    }
+  });
+
+  it('exports a CSV that Excel opens safely (no formulas), and audits the export', async () => {
+    await enable();
+    const t = await table('=HYPERLINK("https://evil.example","7")');
+    await openBill(t.id, 5000);
+    const p = await checkout(t.path, { share: 'full' });
+    await provider(p.demoPath, 'paid');
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const res = await call('GET', `/api/payments/report.csv?from=${yesterday}&to=${tomorrow}`, 'owner');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toBe(`attachment; filename="menuai-payments-${yesterday}-to-${tomorrow}.csv"`);
+    const [header, row] = res.body.replace(/^\uFEFF/, '').trim().split('\r\n');
+    expect(res.body.startsWith('\uFEFF')).toBe(true);
+    expect(header).toBe('"paid_at","table","amount","tip","total","refunded","provider","mode","reference","receipt","review","review_note"');
+    expect(row).toContain(`"'=HYPERLINK(""https://evil.example"",""7"")"`);
+    expect(row).toContain('"50.00","0.00","50.00","0.00","fake","test"');
+    expect(today).toBeTruthy();
+    expect(await db.query("SELECT 1 FROM audit_log WHERE action = 'payments.export'")).toHaveLength(1);
+    expect((await call('GET', `/api/payments/report.csv?from=${yesterday}&to=${tomorrow}`, 'editor')).statusCode).toBe(403);
+  });
+
+  it('lets the owner resolve a flagged payment once, and then it leaves the open list', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    await age(a.paymentId, 21);
+    expect((await call('POST', `/api/payments/bills/${billId}/cancel`, 'editor')).statusCode).toBe(200);
+    await chargeLate(a.paymentId);
+    await call('GET', `${t.path}/done/${a.paymentId}`, 'guest');
+    expect((await call('GET', '/api/payments/bills', 'editor')).json().bills.map((b: { id: string }) => b.id)).toContain(billId);
+
+    const resolve = (as: As, note = 'Refunded in the Grow dashboard') => call('POST', `/api/payments/payments/${a.paymentId}/resolve`, as, { note });
+    expect((await resolve('editor')).statusCode).toBe(403);
+    expect((await resolve('owner', ' ')).statusCode).toBe(400);
+    expect((await resolve('owner')).statusCode).toBe(200);
+    expect((await resolve('owner')).json()).toEqual({ error: 'nothing_to_resolve' });
+    expect((await call('POST', `/api/payments/payments/${'0'.repeat(8)}-0000-4000-8000-${'0'.repeat(12)}/resolve`, 'owner', { note: 'x' })).statusCode).toBe(404);
+    expect((await call('GET', '/api/payments/bills', 'editor')).json().bills.map((b: { id: string }) => b.id)).not.toContain(billId);
+    const recent = (await call('GET', '/api/payments/bills?view=recent', 'editor')).json().bills.find((b: { id: string }) => b.id === billId);
+    expect(recent.payments[0]).toMatchObject({ reviewReason: 'bill_not_open', reviewNote: 'Refunded in the Grow dashboard' });
+    expect(recent.payments[0].reviewResolvedAt).toBeTruthy();
+  });
+
+  it('links the table page to its published menu, carrying the table code for the way back to paying', async () => {
+    await enable();
+    const created = await call('POST', '/api/menus', 'editor', { menu: { ...createSampleMenu(), title: { he: 'לומייר', en: 'Lumiere' } } });
+    const menu = created.json().menu as { id: string; draftVersion: number };
+    expect((await call('POST', `/api/menus/${menu.id}/publish`, 'editor', {}, { 'if-match': `"${menu.draftVersion}"` })).statusCode).toBe(200);
+    expect((await call('POST', '/api/payments/tables', 'owner', { label: '9', menuId: menu.id })).statusCode).toBe(201);
+    const t = ((await call('GET', '/api/payments/tables', 'editor')).json().tables as { label: string; url: string }[]).find((x) => x.label === '9')!;
+    const code = new URL(t.url).pathname.split('/').pop();
+    const page = await call('GET', `${new URL(t.url).pathname}?lang=en`, 'guest');
+    expect(page.body).toContain(`href="http://localhost:5173/m/lumiere?lang=en#table=${code}"`);
+    expect(page.body).toContain('Lumiere');
+    // The published page's CSP still pins its (now larger) runtime script.
+    const published = await call('GET', '/m/lumiere', 'guest');
+    const script = /<script>([\s\S]*?)<\/script>/.exec(published.body)![1]!;
+    const hash = createHash('sha256').update(script).digest('base64');
+    expect(published.headers['content-security-policy']).toContain(`'sha256-${hash}'`);
+    expect(script).toContain('initTablePay(document)');
+  });
+
+  it('still records a payment that completes after payments were switched off', async () => {
+    await enable();
+    const t = await table();
+    const billId = await openBill(t.id, 10000);
+    const { paymentId } = await checkout(t.path, { share: 'full' });
+    expect((await call('PUT', '/api/payments/settings', 'owner', { enabled: false, provider: 'fake', mode: 'test', tipPercents: [10] })).statusCode).toBe(200);
+    // The guest finishes on the provider's page; its notification still counts.
+    const [row] = await db.query<{ provider_ref: Record<string, string> }>('SELECT provider_ref FROM payments WHERE id = $1', [paymentId]);
+    await db.query(`UPDATE payments SET provider_ref = provider_ref || '{"outcome":"paid","txn":"T-1"}'::jsonb WHERE id = $1`, [paymentId]);
+    const res = await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: { paymentId, demoSecret: row!.provider_ref.demoSecret } });
+    expect(res.json()).toMatchObject({ outcome: 'paid' });
+    expect(await bill(billId)).toMatchObject({ status: 'paid', paidAgorot: 10000 });
+  });
+
+  it('refuses to switch provider, mode or credentials while a guest is paying', async () => {
+    await enable();
+    const t = await table();
+    await openBill(t.id, 10000);
+    const a = await checkout(t.path, { share: 'full' });
+    const put = (body: Record<string, unknown>) => call('PUT', '/api/payments/settings', 'owner', { enabled: true, provider: 'fake', mode: 'test', tipPercents: [10], ...body });
+    expect((await put({ credentials: {} })).json()).toEqual({ error: 'payments_in_progress' });
+    // Tips, terms and on/off can change any time.
+    expect((await put({ tipPercents: [5, 10], termsUrl: 'https://example.com/terms' })).statusCode).toBe(200);
+    await provider(a.demoPath, 'declined');
+    expect((await put({ credentials: {} })).statusCode).toBe(200);
+    // Terms links must really start with https:// (no 500 from the database check).
+    for (const bad of ['HTTPS://example.com', 'https:example.com', 'https:/example.com']) {
+      expect((await put({ termsUrl: bad })).statusCode).toBe(400);
+    }
+  });
+
   it('accepts provider notifications without an Origin, but nothing else', async () => {
     await enable();
     expect((await app.inject({ method: 'POST', url: '/api/payments/notify/fake', payload: {} })).statusCode).toBe(200);
@@ -461,5 +602,135 @@ describe('pay at the table', () => {
     expect((await call('GET', demoPath, 'guest')).statusCode).toBe(404);
     expect((await call('GET', t.path, 'guest')).body).toContain('תשלום מהשולחן לא זמין');
     expect(testConfig().PAYMENTS_ALLOW_FAKE).toBe(false);
+  });
+
+  describe('refunds', () => {
+    async function paidPayment(amountAgorot = 10000, fields: Record<string, string> = { share: 'full' }) {
+      const t = await table();
+      const billId = await openBill(t.id, amountAgorot);
+      const p = await checkout(t.path, fields);
+      await provider(p.demoPath, 'paid');
+      return { t, billId, paymentId: p.paymentId };
+    }
+    const refund = (id: string, as: As, body: unknown) => call('POST', `/api/payments/payments/${id}/refund`, as, body);
+    type BillDto = { id: string; payments: { id: string; refunds: { status: string; amountAgorot: number; needsConfirmation: boolean }[] }[] };
+    const bills = async (view = 'recent') => (await call('GET', `/api/payments/bills?view=${view}`, 'editor')).json() as { refunds: unknown; bills: BillDto[] };
+
+    it('lets only the owner refund, up to what was charged including the tip, and audits it', async () => {
+      await enable();
+      const { billId, paymentId } = await paidPayment(10000, { share: 'full', tip: '10' });
+      expect((await refund(paymentId, 'editor', { amountAgorot: 100 })).statusCode).toBe(403);
+      expect((await refund(paymentId, 'owner', { amountAgorot: 11001 })).json()).toEqual({ error: 'refund_too_large' });
+      const first = await refund(paymentId, 'owner', { amountAgorot: 6000, note: 'Cold soup' });
+      expect(first.statusCode).toBe(200);
+      expect(first.json()).toMatchObject({ status: 'succeeded', refundRef: expect.stringMatching(/^DEMO-R-/) });
+      expect((await refund(paymentId, 'owner', { amountAgorot: 5001 })).json()).toEqual({ error: 'refund_too_large' });
+      expect((await refund(paymentId, 'owner', { amountAgorot: 5000 })).json()).toMatchObject({ status: 'succeeded' });
+      expect((await refund(paymentId, 'owner', { amountAgorot: 1 })).json()).toEqual({ error: 'refund_too_large' });
+
+      const listed = await bills();
+      expect(listed.refunds).toMatchObject({ provider: 'fake', mode: 'test' });
+      const refunds = listed.bills.find((b) => b.id === billId)!.payments[0]!.refunds;
+      expect(refunds.map((r) => [r.status, r.amountAgorot])).toEqual([['succeeded', 6000], ['succeeded', 5000]]);
+      // A refund doesn't reopen the bill: it is an adjustment after payment.
+      expect((await bill(billId)).status).toBe('paid');
+      expect(await db.query("SELECT 1 FROM audit_log WHERE action IN ('payment.refund_requested', 'payment.refund_succeeded')")).toHaveLength(4);
+    });
+
+    it('validates the request and is rate limited', async () => {
+      await enable();
+      const { paymentId } = await paidPayment();
+      expect((await refund(paymentId, 'anon', { amountAgorot: 100 })).statusCode).toBe(401);
+      for (const body of [{ amountAgorot: 0 }, { amountAgorot: 1.5 }, { amountAgorot: '100' }, { amountAgorot: 100, extra: 1 }, {}]) {
+        expect((await refund(paymentId, 'owner', body)).statusCode).toBe(400);
+      }
+      expect((await refund('not-a-uuid', 'owner', { amountAgorot: 100 })).statusCode).toBe(404);
+      expect((await refund('00000000-0000-4000-8000-000000000000', 'owner', { amountAgorot: 100 })).statusCode).toBe(404);
+      expect((await refund(paymentId, 'owner', { amountAgorot: 100 })).statusCode).toBe(200);
+      expect((await refund(paymentId, 'owner', { amountAgorot: 100 })).statusCode).toBe(200);
+      expect((await refund(paymentId, 'owner', { amountAgorot: 100 })).statusCode).toBe(429);
+      expect(await db.query('SELECT 1 FROM payment_refunds')).toHaveLength(2);
+    });
+
+    it('refuses refunds of unpaid payments and after the provider or mode changed', async () => {
+      await enable();
+      const t = await table();
+      await openBill(t.id, 10000);
+      const pending = await checkout(t.path, { share: 'custom', shareAmount: '40' });
+      expect((await refund(pending.paymentId, 'owner', { amountAgorot: 100 })).json()).toEqual({ error: 'payment_not_paid' });
+      await provider(pending.demoPath, 'paid');
+      await db.query("UPDATE payments SET mode = 'live' WHERE id = $1", [pending.paymentId]);
+      expect((await refund(pending.paymentId, 'owner', { amountAgorot: 100 })).json()).toEqual({ error: 'refund_provider_changed' });
+      await db.query("UPDATE payments SET mode = 'test', provider = 'grow' WHERE id = $1", [pending.paymentId]);
+      expect((await refund(pending.paymentId, 'owner', { amountAgorot: 100 })).json()).toEqual({ error: 'refund_provider_changed' });
+      expect(await db.query('SELECT 1 FROM payment_refunds')).toHaveLength(0);
+    });
+
+    it('still refunds while guests can\'t pay (payments switched off)', async () => {
+      await enable();
+      const { paymentId } = await paidPayment();
+      await call('PUT', '/api/payments/settings', 'owner', { enabled: false, provider: 'fake', mode: 'test', tipPercents: [] });
+      expect((await refund(paymentId, 'owner', { amountAgorot: 10000 })).json()).toMatchObject({ status: 'succeeded' });
+    });
+
+    it('marks a flagged payment handled once it is refunded in full', async () => {
+      await enable();
+      const t = await table();
+      const billId = await openBill(t.id, 10000);
+      const a = await checkout(t.path, { share: 'full' });
+      await age(a.paymentId, 21);
+      expect((await call('POST', `/api/payments/bills/${billId}/cancel`, 'editor')).statusCode).toBe(200);
+      await chargeLate(a.paymentId);
+      await call('GET', `${t.path}/done/${a.paymentId}`, 'guest');
+      expect((await bills('open')).bills.map((b) => b.id)).toContain(billId);
+      expect((await refund(a.paymentId, 'owner', { amountAgorot: 4000 })).json()).toMatchObject({ status: 'succeeded' });
+      expect((await bills('open')).bills.map((b) => b.id)).toContain(billId);
+      expect((await refund(a.paymentId, 'owner', { amountAgorot: 6000 })).json()).toMatchObject({ status: 'succeeded' });
+      const [row] = await db.query<{ review_resolved_at: Date | null; review_note: string }>('SELECT review_resolved_at, review_note FROM payments WHERE id = $1', [a.paymentId]);
+      expect(row!.review_resolved_at).not.toBeNull();
+      expect(row!.review_note).toBe('refunded');
+      expect((await bills('open')).bills.map((b) => b.id)).not.toContain(billId);
+    });
+
+    it('lets the owner confirm an unknown or interrupted refund once, and keeps such bills in the open list', async () => {
+      await enable();
+      const { billId, paymentId } = await paidPayment();
+      const [stuck] = await db.query<{ id: string }>(
+        "INSERT INTO payment_refunds (payment_id, amount_agorot, status, created_at) VALUES ($1, 3000, 'pending', now() - interval '5 minutes') RETURNING id",
+        [paymentId],
+      );
+      // One refund in flight at a time, enforced by the database as well.
+      await expect(db.query("INSERT INTO payment_refunds (payment_id, amount_agorot, status) VALUES ($1, 100, 'unknown')", [paymentId])).rejects.toThrow();
+      expect((await refund(paymentId, 'owner', { amountAgorot: 100 })).json()).toEqual({ error: 'refund_in_progress' });
+      expect((await bills('open')).bills.find((b) => b.id === billId)!.payments[0]!.refunds[0]!.needsConfirmation).toBe(true);
+      const confirm = (id: string, as: As, outcome: string) => call('POST', `/api/payments/refunds/${id}/confirm`, as, { outcome });
+      expect((await confirm(stuck!.id, 'editor', 'succeeded')).statusCode).toBe(403);
+      expect((await confirm(stuck!.id, 'owner', 'maybe')).statusCode).toBe(400);
+      expect((await confirm(stuck!.id, 'owner', 'succeeded')).statusCode).toBe(200);
+      expect((await confirm(stuck!.id, 'owner', 'failed')).json()).toEqual({ error: 'nothing_to_confirm' });
+      expect((await confirm('00000000-0000-4000-8000-000000000000', 'owner', 'failed')).statusCode).toBe(404);
+      expect((await bills('open')).bills.map((b) => b.id)).not.toContain(billId);
+      // The confirmed amount counts: only the rest can still be refunded.
+      expect((await refund(paymentId, 'owner', { amountAgorot: 7001 })).json()).toEqual({ error: 'refund_too_large' });
+      // A fresh in-flight refund can't be "confirmed" while its call may still be running.
+      const [fresh] = await db.query<{ id: string }>("INSERT INTO payment_refunds (payment_id, amount_agorot) VALUES ($1, 100) RETURNING id", [paymentId]);
+      expect((await confirm(fresh!.id, 'owner', 'failed')).json()).toEqual({ error: 'nothing_to_confirm' });
+      expect(await db.query("SELECT 1 FROM audit_log WHERE action = 'payment.refund_confirmed'")).toHaveLength(1);
+    });
+
+    it('shows refunds in the report on the day they were made, and in the CSV per payment', async () => {
+      await enable();
+      const { paymentId } = await paidPayment(10000);
+      await refund(paymentId, 'owner', { amountAgorot: 2500 });
+      await db.query("UPDATE payments SET paid_at = '2026-10-28T10:00:00Z' WHERE id = $1", [paymentId]);
+      await db.query("UPDATE payment_refunds SET completed_at = '2026-10-30T10:00:00Z' WHERE payment_id = $1", [paymentId]);
+      const res = await call('GET', '/api/payments/report?from=2026-10-28&to=2026-10-30', 'owner');
+      expect(res.json().days).toEqual([
+        { date: '2026-10-28', mode: 'test', bills: 1, payments: 1, collectedAgorot: 10000, tipsAgorot: 0, refundedAgorot: 0, openReviews: 0 },
+        { date: '2026-10-30', mode: 'test', bills: 0, payments: 0, collectedAgorot: 0, tipsAgorot: 0, refundedAgorot: 2500, openReviews: 0 },
+      ]);
+      const csv = await call('GET', '/api/payments/report.csv?from=2026-10-28&to=2026-10-28', 'owner');
+      expect(csv.body).toContain('"100.00","0.00","100.00","25.00","fake","test"');
+    });
   });
 });

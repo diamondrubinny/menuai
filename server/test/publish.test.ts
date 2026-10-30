@@ -14,6 +14,8 @@ import type { Config } from '../src/config';
 import { createSampleMenu } from '../../src/core/sample';
 import { MAX_VERSIONS, publicUrl } from '../src/publish/routes';
 import { createFileStore } from '../src/publish/store';
+import { refreshPublishedPages } from '../src/publish/refresh';
+import { writeFileSync } from 'node:fs';
 import { fontPath } from '../src/publish/render';
 import { FONT_FILES } from '../../src/core/fontFiles.generated';
 import type { Menu } from '../../src/core/schema';
@@ -89,7 +91,9 @@ describe('publishing', () => {
     expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("img-src 'self' data: https:"); // uploaded images (/media/…) on the same origin
-    expect(csp).not.toContain('connect-src'); // falls back to 'none': no calls to the API from a published page
+    // Only the hashed runtime script runs; it may call this server (the table cart) and nothing else.
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).not.toMatch(/connect-src[^;]*(https?:|\*)/);
     expect(page.headers['x-frame-options']).toBe('DENY');
     expect(page.body).toContain('<title>לומייר</title>');
     expect(page.body).toContain('data-ma-credit');
@@ -151,6 +155,20 @@ describe('publishing', () => {
     expect(await db.query('SELECT 1 FROM menu_versions')).toHaveLength(0);
     expect(await db.query('SELECT 1 FROM publications')).toHaveLength(0);
     expect(await db.query("SELECT 1 FROM audit_log WHERE action = 'menu.publish'")).toHaveLength(0);
+  });
+
+  it('re-renders pages published by an older version, so their script matches the current CSP', async () => {
+    const menu = await createMenu();
+    expect((await publish(menu.id, menu.draftVersion)).statusCode).toBe(200);
+    const store = createFileStore(config.PUBLISH_DIR);
+    const file = path.join(config.PUBLISH_DIR, `${menu.slug}.html`);
+    const current = readFileSync(file, 'utf8');
+    // A page from an older release: same content, a different (older) inline runtime script.
+    writeFileSync(file, current.replace(/<script>[\s\S]*<\/script>/, '<script>(function(){/* old runtime */})();</script>'));
+    expect(await refreshPublishedPages(db, store)).toEqual({ refreshed: 1, failed: 0 });
+    expect(readFileSync(file, 'utf8')).toBe(current);
+    // Already current: left alone.
+    expect(await refreshPublishedPages(db, store)).toEqual({ refreshed: 0, failed: 0 });
   });
 
   it('lists the menu as live in the menu list', async () => {
