@@ -14,7 +14,7 @@ the data controller; MenuAI's developers do not receive or process this data. Re
 | Published versions of a menu | The latest 50 per menu (the live one is always kept) | Enforced on each publish |
 | Menus and their images | Until the operator deletes the menu | Deleting a menu removes its public page and versions; its images follow within 24 hours |
 | Team accounts (email, name, role) | While the account exists | Disabling an account blocks it at once. ⚖️ Define when disabled accounts are deleted |
-| Pay at the table: bills, payments, refunds and receipt links (amounts, tip, status, provider references; no card data, no payer name or phone) | ⚖️ As accounting/tax law requires (typically 7 years). Not deleted automatically | Operator, after the legal period |
+| Pay at the table: bills, orders, payments, refunds and receipt links (amounts, dishes, notes, tip, status, provider references; no card data, no payer name or phone) | ⚖️ As accounting/tax law requires (typically 7 years). Not deleted automatically | Operator, after the legal period |
 | Pay at the table: checkouts nobody finished | Marked expired after 24 hours (the record stays with its bill) | Enforced |
 | Pay at the table: provider notification log (no personal data) | 13 months | Enforced |
 | Guests of published menus | MenuAI stores nothing. The web server's access log (truncated IP, path, status) is kept 14 days | logrotate |

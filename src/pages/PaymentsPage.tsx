@@ -11,10 +11,11 @@ import {
   shekelsToAgorot, updateBill, updateTable, type Bill, type BillPayment, type DiningTable, type RefundChannel, type ReportDay, type PaymentMode, type PaymentSettingsDto, type PaymentsStatus, type ProviderId,
 } from '../api/payments';
 import { useFeedback } from '../store/feedbackStore';
+import { OrdersSection } from './OrdersSection';
 import { useT, type UiKey } from '../i18n/ui';
 
 type Gate = { kind: 'loading' } | { kind: 'noServer' } | { kind: 'signedOut' } | { kind: 'staffOnly' } | { kind: 'ready'; me: ApiUser; status: PaymentsStatus };
-type Section = 'bills' | 'tables' | 'report' | 'settings';
+type Section = 'bills' | 'orders' | 'tables' | 'report' | 'settings';
 
 /** Staff screens refresh bills on their own, so a waiter sees guests' payments come in. */
 const REFRESH_MS = 10_000;
@@ -73,6 +74,7 @@ export function PaymentsPage() {
   const isOwner = gate.kind === 'ready' && gate.me.role === 'owner';
   const sections: { id: Section; label: UiKey }[] = [
     { id: 'bills', label: 'payTabBills' },
+    { id: 'orders', label: 'payTabOrders' },
     { id: 'tables', label: 'payTabTables' },
     ...(isOwner ? [{ id: 'report' as const, label: 'payTabReport' as const }, { id: 'settings' as const, label: 'payTabSettings' as const }] : []),
   ];
@@ -112,6 +114,7 @@ export function PaymentsPage() {
               </nav>
               <h2 ref={sectionHeading} tabIndex={-1}>{t(sections.find((s) => s.id === section)?.label ?? 'payTabBills')}</h2>
               {section === 'bills' && <BillsSection isOwner={isOwner} />}
+              {section === 'orders' && <OrdersSection isOwner={isOwner} />}
               {section === 'report' && isOwner && <ReportSection />}
               {section === 'tables' && <TablesSection isOwner={isOwner} />}
               {section === 'settings' && isOwner && <SettingsSection onSaved={() => void refreshStatus()} />}

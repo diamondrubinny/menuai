@@ -43,8 +43,8 @@ let cspPromise: Promise<string> | undefined;
 
 /**
  * CSP header for published menus. The page's runtime script is the same for every menu, so its hash
- * is computed once. `default-src 'none'` also blocks fetch/XHR, so a published page can never call the
- * API on the same origin.
+ * is computed once. Only that hashed script can run, and `connect-src 'self'` lets it (the table cart,
+ * tableOrder.js) reach this server's guest order endpoints; it never reaches other origins.
  */
 export function publishedMenuCsp(): Promise<string> {
   cspPromise ??= sha256Base64(runtimeScript()).then((hash) =>
@@ -54,6 +54,8 @@ export function publishedMenuCsp(): Promise<string> {
       "style-src 'unsafe-inline'",
       'font-src data:',
       `script-src 'sha256-${hash}'`,
+      // The table cart (tableOrder.js) reads and sends orders to this server only.
+      "connect-src 'self'",
       "base-uri 'none'",
       "form-action 'none'",
       "frame-ancestors 'none'",

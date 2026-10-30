@@ -41,6 +41,8 @@ export function initTablePay(doc) {
 
   var link = doc.createElement('a');
   link.className = 'ma-pay';
+  // The cart (tableOrder.js) reads the table code from here.
+  link.setAttribute('data-ma-table', code);
   var icon = doc.createElement('span');
   icon.setAttribute('aria-hidden', 'true');
   icon.textContent = '💳';

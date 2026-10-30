@@ -156,6 +156,12 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
 - 🧑 The Grow sandbox run in [docs/PAYMENTS.md](PAYMENTS.md#grow-sandbox-run-before-going-live) passed: paid, split, tip, cancel, and two guests at once.
 - 🧑 `BUSINESS_TIMEZONE` matches the restaurant. The daily report matches the provider's dashboard for a test day.
 - 🧑 Someone owns the ⚠️ flagged payments: they refund from the bills screen (or in the provider's dashboard, then **Mark as handled**).
+- 🧑 If ordering from the menu is on:
+  - someone watches **Orders** during service;
+  - an order from a tablet and from a phone reaches the screen;
+  - accepting it adds it to the bill;
+  - rejecting it shows the reason to the guest;
+  - the published menu was re-published, or the server restarted, so the cart's script is in place.
 - 🧑 Refunds were tried in the provider's sandbox: a full and a partial refund, and Grow's same-day rule. The owner knows that an **unknown** refund must be checked in the provider's dashboard and confirmed, never repeated blindly.
 - 🧑 A payment-terms link is set in Settings, so guests must accept the terms (Grow's review requires it).
 - 🧑 Before going **live** with Grow:

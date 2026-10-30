@@ -241,4 +241,43 @@ ALTER TABLE payments ADD COLUMN receipt_number text CHECK (length(receipt_number
 ALTER TABLE payments ADD COLUMN receipt_url text CHECK (receipt_url ~ '^https://' AND length(receipt_url) <= 500);
 `,
   },
+  {
+    id: '0009_orders',
+    sql: `
+-- Ordering from the published menu: the owner turns it on; a waiter accepts each order into the bill.
+ALTER TABLE payment_settings ADD COLUMN ordering_enabled boolean NOT NULL DEFAULT false;
+CREATE TABLE orders (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  table_id uuid NOT NULL REFERENCES dining_tables(id) ON DELETE RESTRICT,
+  menu_id uuid REFERENCES menus(id) ON DELETE SET NULL,
+  -- The published version the prices came from.
+  version_id uuid REFERENCES menu_versions(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'accepted', 'rejected')),
+  total_agorot integer NOT NULL CHECK (total_agorot BETWEEN 100 AND 10000000),
+  locale text NOT NULL CHECK (length(locale) <= 10),
+  idempotency_key text NOT NULL CHECK (idempotency_key ~ '^[A-Za-z0-9_-]{16,64}$'),
+  reject_reason text CHECK (length(reject_reason) <= 140),
+  bill_id uuid REFERENCES bills(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz,
+  decided_by uuid REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX orders_idempotency ON orders (table_id, idempotency_key);
+CREATE INDEX orders_table_created ON orders (table_id, created_at DESC);
+CREATE INDEX orders_new ON orders (created_at) WHERE status = 'new';
+-- Names are snapshots in the guest's language (the menu can change later). No personal data.
+CREATE TABLE order_lines (
+  order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  position smallint NOT NULL CHECK (position BETWEEN 0 AND 29),
+  item_id text NOT NULL CHECK (length(item_id) <= 40),
+  variant_id text CHECK (length(variant_id) <= 40),
+  name text NOT NULL CHECK (length(name) <= 200),
+  variant_label text CHECK (length(variant_label) <= 100),
+  unit_agorot integer NOT NULL CHECK (unit_agorot >= 0),
+  qty smallint NOT NULL CHECK (qty BETWEEN 1 AND 20),
+  note text NOT NULL DEFAULT '' CHECK (length(note) <= 140),
+  PRIMARY KEY (order_id, position)
+);
+`,
+  },
 ];

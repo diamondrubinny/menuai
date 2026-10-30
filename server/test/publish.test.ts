@@ -91,7 +91,9 @@ describe('publishing', () => {
     expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/=]+'/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("img-src 'self' data: https:"); // uploaded images (/media/…) on the same origin
-    expect(csp).not.toContain('connect-src'); // falls back to 'none': no calls to the API from a published page
+    // Only the hashed runtime script runs; it may call this server (the table cart) and nothing else.
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).not.toMatch(/connect-src[^;]*(https?:|\*)/);
     expect(page.headers['x-frame-options']).toBe('DENY');
     expect(page.body).toContain('<title>לומייר</title>');
     expect(page.body).toContain('data-ma-credit');

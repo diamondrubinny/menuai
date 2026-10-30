@@ -1122,3 +1122,78 @@
 .ma-pay:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
 body.ma-has-pay { padding-block-end: 88px; }
 @media print { .ma-pay { display: none; } body.ma-has-pay { padding-block-end: 0; } }
+/* Ordering from the table (tableOrder.js): system UI on top of any theme, high contrast. */
+.ma-cart {
+  position: fixed;
+  inset-block-end: calc(16px + env(safe-area-inset-bottom, 0px));
+  inset-inline-start: 16px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 52px;
+  padding: 0.75rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: #1d1a16;
+  color: #fff;
+  font: 700 1.05rem/1.2 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.ma-cart[hidden] { display: none; }
+.ma-cart-count:not(:empty) { min-inline-size: 1.6rem; padding: 0.1rem 0.4rem; border-radius: 999px; background: #fff; color: #1d1a16; text-align: center; font-variant-numeric: tabular-nums; }
+.ma-cart:focus-visible, .ma-add:focus-visible, .ma-cart-dialog button:focus-visible, .ma-cart-dialog input:focus-visible, .ma-cart-dialog h2:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.ma-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  margin-block-start: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: 700 0.95rem/1 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  cursor: pointer;
+}
+.ma-variant .ma-add { margin-block-start: 0; margin-inline-start: 0.5rem; }
+.ma-cart-overlay { position: fixed; inset: 0; z-index: 1001; display: flex; align-items: flex-end; justify-content: center; background: rgba(0, 0, 0, 0.55); }
+.ma-cart-overlay[hidden] { display: none; }
+.ma-cart-dialog {
+  box-sizing: border-box;
+  inline-size: min(560px, 100%);
+  max-block-size: 90vh;
+  overflow: auto;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  background: #fff;
+  color: #1d1a16;
+  font: 400 1rem/1.5 system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+.ma-cart-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.ma-cart-head h2 { margin: 0; font-size: 1.3rem; }
+.ma-cart-dialog button { min-block-size: 44px; min-inline-size: 44px; border-radius: 10px; border: 2px solid #1d1a16; background: #fff; color: #1d1a16; font: inherit; font-weight: 700; cursor: pointer; }
+.ma-cart-dialog button:disabled { opacity: 0.55; cursor: default; }
+.ma-cart-lines, .ma-cart-orders { list-style: none; margin: 0.75rem 0; padding: 0; }
+.ma-cart-line { display: grid; grid-template-columns: 1fr auto auto; gap: 0.4rem 0.75rem; align-items: center; padding: 0.6rem 0; border-block-end: 1px solid #ddd; }
+.ma-cart-name { font-weight: 700; }
+.ma-cart-qty { display: inline-flex; align-items: center; gap: 0.4rem; }
+.ma-cart-qty output { min-inline-size: 1.5rem; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ma-cart-price { font-variant-numeric: tabular-nums; }
+.ma-cart-note-label { grid-column: 1 / -1; font-size: 0.9rem; color: #4a443c; }
+.ma-cart-note { grid-column: 1 / -1; box-sizing: border-box; inline-size: 100%; min-block-size: 44px; padding: 0.5rem 0.75rem; border: 1.5px solid #8a8278; border-radius: 10px; font: inherit; }
+.ma-cart-total { font-size: 1.15rem; font-weight: 800; text-align: end; margin: 0.5rem 0; }
+.ma-cart-hint { color: #4a443c; font-size: 0.9rem; margin: 0 0 0.75rem; }
+.ma-cart-dialog .ma-cart-send { inline-size: 100%; min-block-size: 52px; background: #1d1a16; color: #fff; }
+.ma-cart-status:empty { display: none; }
+.ma-cart-status { margin: 0.75rem 0; font-weight: 700; }
+.ma-cart-sub { font-size: 1rem; margin: 1rem 0 0.25rem; }
+.ma-cart-order { padding: 0.35rem 0; }
+.ma-cart-order-rejected { color: #9a1c12; }
+body.ma-has-cart { padding-block-end: 88px; }
+.ma-cart-live { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+body.ma-cart-open { overflow: hidden; }
+@media print { .ma-cart, .ma-add, .ma-cart-overlay { display: none !important; } }

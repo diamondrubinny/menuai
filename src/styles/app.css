@@ -827,6 +827,15 @@ input[type='range'] { width: 100%; accent-color: var(--primary); min-height: 32p
 .pay-resolve { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .pay-resolve input { inline-size: 16rem; max-inline-size: 100%; }
 .pay-resolve .pay-amount-input { inline-size: 8rem; }
+.pay-check { display: inline-flex; gap: 0.5rem; align-items: center; font-weight: 700; min-block-size: 44px; }
+.pay-check input { inline-size: 1.25rem; block-size: 1.25rem; }
+.ord-new { border-inline-start: 4px solid var(--primary); }
+.ord-lines { list-style: none; padding: 0; margin: 0.5rem 0; }
+.ord-lines > li { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: baseline; padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+.ord-qty { font-weight: 800; font-variant-numeric: tabular-nums; }
+.ord-price { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+.ord-note { flex-basis: 100%; margin: 0; color: var(--muted); font-style: italic; }
+.ord-total { text-align: end; margin: 0.5rem 0 0; }
 .pay-refund { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; flex-basis: 100%; }
 .pay-range { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); max-width: 640px; align-items: end; }
 .pay-range .button-row, .pay-range .error { grid-column: 1 / -1; }

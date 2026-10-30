@@ -95,7 +95,7 @@ A `fake` provider is used in tests and the demo (no real money).
 | 3b ✅ (code; sandbox run pending) | First real Israeli provider (sandbox) end to end |
 | 3c ✅ PayPlus (code; sandbox run pending) | Second provider (PayPlus, signed callbacks). Stripe: Israeli business onboarding unclear, not built; PayPal: on request |
 | 3d (in progress) | ✅ Resolving flagged payments, daily report by business day, CSV export (owner). ✅ **Refunds through the provider API** (owner; see §8). **Later:** receipts/tax invoices via the provider's invoice module or an accounting system (⚖️ accountant). |
-| 3e (optional) | Order-and-pay cart (flow B) |
+| 3e ✅ (3e-1, 3e-2) | Order from the menu (flow B): cart on the published menu, waiter approval into the table's bill (§10). 3e-3 (kitchen display, sound, pay-first) later |
 
 ## 7. Out of scope (MVP)
 
@@ -133,7 +133,7 @@ Design:
 - **Guest result page:** a "🧾 Receipt" link (new tab) once the receipt has arrived. Whether and how the provider also emails it follows its own settings.
 - **Staff screen** shows the receipt number with its link. **CSV** gets a `receipt` column.
 
-## 10. Phase 3e: Order from the menu (flow B), draft for approval
+## 10. Phase 3e: Order from the menu (flow B): **approved 2026-10-30**, decision 1 = (a) the order is added to the table's bill; decision 2 = the waiter approves on the existing screen
 
 ### Goal
 A guest at a table (tablet or phone) adds dishes from the published menu to a cart and sends the order. Staff see it on the payments screen. Payment then uses the existing table bill flow (or pays at once; see decision 1).

@@ -79,6 +79,8 @@ Adding a provider means implementing `PaymentProvider`: `createSession`, `parseN
 | Payments (share, tip, status, provider reference, times) | Reconciliation, refunds | Contract, legal obligation | DB | As bills | Provider holds the transaction |
 | Provider handles for refunds (Grow transactionId + transactionToken, PayPlus transaction uid; not card data) | Refunding through the provider's API | Contract | DB, with the payment | As bills | Provider |
 | Refunds (amount, status, the provider's refund reference or error code, owner's note, who and when) | Accounting, audit | Contract, legal obligation | DB | As bills | Provider performs the refund |
+| Orders from the menu (dishes, sizes, quantities, prices from the published menu, table, times, who accepted or rejected, the reason) | Serving the order, adding it to the bill | Contract | DB | As bills | — |
+| Order notes (free text the guest types, up to 140 characters; the cart asks for no personal details) | Telling the kitchen | Contract | DB, with the order | As bills | — |
 | Receipt number and link (the document is issued and held by the provider or its invoice company; it can show the payer's name) | Giving the guest and staff the receipt | Contract, legal obligation | DB, with the payment (link only) | As bills | Provider / invoice company (DPA ⚖️) |
 | Abandoned checkouts | Releasing reservations | Legitimate interest | DB | Marked expired after 24 h | — |
 | Provider notification log (no names, phones or card data) | Troubleshooting, audit | Legitimate interest | DB | 13 months | — |
@@ -141,6 +143,28 @@ On the bills screen, a paid payment has **↩ Refund** for the owner. Enter the 
 |---|---|---|
 | Grow | `refundTransaction` (multipart: `userId`, `transactionId`, `transactionToken`, `refundSum`, `pageCode`). Only Grow's `status: 1` counts as refunded. The response layout is not published, so no refund reference is read. | Grow docs: Refund Transaction, Refund overview |
 | PayPlus | `Transactions/RefundByTransactionUID` (JSON: `transaction_uid`, `amount`; `api-key` + `secret-key`). `results.status` success, with the refund's `status_code` 000 when present. | PayPlus docs: Refund by transaction UID |
+
+## Ordering from the menu (Phase 3e)
+
+Guests at a table can order dishes from the menu. **A waiter accepts every order**, and only then is it added to the table's bill, which is paid in the usual way. Ordering itself charges nothing.
+
+- **Turning it on** (owner): Pay at the table → **Orders** → "Let guests order from the menu". It works at tables linked to a **published** menu in shekels.
+- **On the menu**, opened from the table page on the tablet or a phone:
+  - each dish (and each size) the server offers gets a **+ Add** button;
+  - a **🛒 My order** button opens the cart: quantities, a note for the kitchen, the total, and **Send the order**;
+  - the cart then shows the order's status: waiting, accepted and added to the bill, or not accepted (with the waiter's reason).
+- **Staff** (editors): **Orders** lists waiting orders, refreshing every 5 seconds, with a screen-reader announcement when new ones arrive. Each order can be:
+  - **Accepted and added to the bill:** its total joins the table's open bill, or a new bill is opened.
+  - **Rejected:** with an optional reason the guest sees.
+- **Money and safety rules (server-enforced):**
+  - **prices** never come from the browser: they are computed from the menu's live published version, in agorot, and the draft is never used;
+  - **dishes that can't be ordered:** hidden, sold-out or unpriced dishes, and unknown sizes, are refused;
+  - **limits:** up to 30 lines, 20 of each dish, and a note of up to 140 characters (plain text, shown escaped). At most 5 orders can wait per table, and each IP can send 30 orders a minute (a restaurant's tablets often share one IP);
+  - **double taps:** a per-order key means a double tap or a retry creates one order;
+  - **origin:** posting needs our own origin (the global CSRF check), and the published page's CSP allows `connect-src 'self'` only;
+  - **audit:** every accept and reject is audited.
+- **If a printed QR code leaks** and orders start arriving from outside the restaurant, reject them and use **Replace QR code** on the table.
+- ⚖️ Allergen information stays the restaurant's responsibility: the cart makes no claims.
 
 ## Receipts
 
