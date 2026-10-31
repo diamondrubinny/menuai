@@ -17,7 +17,7 @@ import { audit } from '../auth/service';
 import { badRequest, HttpError, notFound } from '../errors';
 import { tableByToken } from '../payments/service';
 import {
-  acceptOrder, liveMenu, localized, orderableItems, orderingEnabled, orderRequestSchema, placeOrder, recentTableOrders, rejectOrder, toAgorot,
+  acceptOrder, liveMenu, markReady, localized, orderableItems, orderingEnabled, orderRequestSchema, placeOrder, recentTableOrders, rejectOrder, toAgorot,
 } from './service';
 
 const noStore = (reply: FastifyReply) => reply.header('cache-control', 'no-store');
@@ -73,15 +73,22 @@ export async function orderRoutes(app: FastifyInstance) {
 
   app.get('/api/orders', { preHandler: editor }, async (req) => {
     configured();
-    const q = z.object({ view: z.enum(['open', 'recent']).default('open') }).safeParse(req.query);
+    const q = z.object({ view: z.enum(['open', 'recent', 'kitchen']).default('open') }).safeParse(req.query);
     if (!q.success) throw badRequest();
-    const where = q.data.view === 'open' ? "o.status = 'new'" : "o.created_at > now() - interval '12 hours'";
+    const where = {
+      open: "o.status = 'new'",
+      recent: "o.created_at > now() - interval '12 hours'",
+      // Accepted, not ready yet: what the kitchen has to make.
+      kitchen: "o.status = 'accepted' AND o.ready_at IS NULL AND o.decided_at > now() - interval '12 hours'",
+    }[q.data.view];
+    // The kitchen works oldest first; the waiter's lists show the newest first.
+    const orderBy = q.data.view === 'kitchen' ? 'o.decided_at ASC' : 'o.created_at DESC';
     const orders = await db.query<{
-      id: string; status: string; total_agorot: number; reject_reason: string | null; created_at: Date; decided_at: Date | null;
+      id: string; status: string; total_agorot: number; reject_reason: string | null; created_at: Date; decided_at: Date | null; ready_at: Date | null;
       table_id: string; table_label: string; bill_id: string | null;
     }>(
-      `SELECT o.id, o.status, o.total_agorot, o.reject_reason, o.created_at, o.decided_at, o.table_id, t.label AS table_label, o.bill_id
-       FROM orders o JOIN dining_tables t ON t.id = o.table_id WHERE ${where} ORDER BY o.created_at DESC LIMIT 100`,
+      `SELECT o.id, o.status, o.total_agorot, o.reject_reason, o.created_at, o.decided_at, o.ready_at, o.table_id, t.label AS table_label, o.bill_id
+       FROM orders o JOIN dining_tables t ON t.id = o.table_id WHERE ${where} ORDER BY ${orderBy} LIMIT 100`,
     );
     const ids = orders.map((o) => o.id);
     const lines = ids.length
@@ -93,7 +100,7 @@ export async function orderRoutes(app: FastifyInstance) {
     return {
       enabled: await orderingEnabled(db),
       orders: orders.map((o) => ({
-        id: o.id, status: o.status, totalAgorot: o.total_agorot, rejectReason: o.reject_reason, createdAt: o.created_at, decidedAt: o.decided_at,
+        id: o.id, status: o.status, totalAgorot: o.total_agorot, rejectReason: o.reject_reason, createdAt: o.created_at, decidedAt: o.decided_at, readyAt: o.ready_at,
         tableId: o.table_id, tableLabel: o.table_label, billId: o.bill_id,
         lines: lines.filter((l) => l.order_id === o.id).map((l) => ({ name: l.name, variantLabel: l.variant_label, unitAgorot: l.unit_agorot, qty: l.qty, note: l.note })),
       })),
@@ -109,6 +116,12 @@ export async function orderRoutes(app: FastifyInstance) {
   app.post('/api/orders/:id/accept', { preHandler: editor }, async (req) => {
     configured();
     return { ok: true, ...(await acceptOrder(db, orderId(req.params), req.user!.id)) };
+  });
+
+  app.post('/api/orders/:id/ready', { preHandler: editor }, async (req) => {
+    configured();
+    await markReady(db, orderId(req.params), req.user!.id);
+    return { ok: true };
   });
 
   app.post('/api/orders/:id/reject', { preHandler: editor }, async (req) => {

@@ -223,4 +223,29 @@ describe('ordering from the table', () => {
     await db.query("INSERT INTO dining_tables (label, token) VALUES ('8', $1)", [other]);
     expect((await call('GET', `/t/${other}/order`, 'guest')).json()).toEqual({ enabled: false, items: {}, orders: [] });
   });
+
+  it('lists accepted orders for the kitchen, oldest first, and marks them ready once (editor+)', async () => {
+    await enable();
+    const a = (await order([{ itemId: 'soup', qty: 1 }])).json().id as string;
+    const b = (await order([{ itemId: 'wine', variantId: 'glass', qty: 2, note: 'קר' }])).json().id as string;
+    const c = (await order([{ itemId: 'soup', qty: 3 }])).json().id as string;
+    await call('POST', `/api/orders/${b}/accept`, 'editor');
+    await call('POST', `/api/orders/${a}/accept`, 'editor');
+    // Not accepted yet: not the kitchen's.
+    expect((await call('POST', `/api/orders/${c}/ready`, 'editor')).json()).toEqual({ error: 'order_not_accepted' });
+    const kitchen = async () => ((await call('GET', '/api/orders?view=kitchen', 'editor')).json().orders as { id: string; lines: { note: string }[] }[]);
+    expect((await kitchen()).map((o) => o.id)).toEqual([b, a]);
+    expect((await kitchen())[0]!.lines[0]!.note).toBe('קר');
+    expect((await call('GET', '/api/orders?view=kitchen', 'viewer')).statusCode).toBe(403);
+    expect((await call('POST', `/api/orders/${b}/ready`, 'viewer')).statusCode).toBe(403);
+    expect((await call('POST', `/api/orders/${b}/ready`, 'editor')).statusCode).toBe(200);
+    expect((await call('POST', `/api/orders/${b}/ready`, 'editor')).json()).toEqual({ error: 'order_not_accepted' });
+    expect((await kitchen()).map((o) => o.id)).toEqual([a]);
+    const guest = (await call('GET', `/t/${token}/order`, 'guest')).json().orders as { id: string; ready: boolean }[];
+    expect(guest.find((o) => o.id === b)!.ready).toBe(true);
+    expect(guest.find((o) => o.id === a)!.ready).toBe(false);
+    const recent = (await call('GET', '/api/orders?view=recent', 'editor')).json().orders as { id: string; readyAt: string | null }[];
+    expect(recent.find((o) => o.id === b)!.readyAt).not.toBeNull();
+    expect(await db.query("SELECT 1 FROM audit_log WHERE action = 'order.ready'")).toHaveLength(1);
+  });
 });

@@ -95,7 +95,7 @@ A `fake` provider is used in tests and the demo (no real money).
 | 3b ✅ (code; sandbox run pending) | First real Israeli provider (sandbox) end to end |
 | 3c ✅ PayPlus (code; sandbox run pending) | Second provider (PayPlus, signed callbacks). Stripe: Israeli business onboarding unclear, not built; PayPal: on request |
 | 3d (in progress) | ✅ Resolving flagged payments, daily report by business day, CSV export (owner). ✅ **Refunds through the provider API** (owner; see §8). **Later:** receipts/tax invoices via the provider's invoice module or an accounting system (⚖️ accountant). |
-| 3e ✅ (3e-1, 3e-2) | Order from the menu (flow B): cart on the published menu, waiter approval into the table's bill (§10). 3e-3 (kitchen display, sound, pay-first) later |
+| 3e ✅ (3e-1, 3e-2, 3e-3 kitchen and sound) | Order from the menu (flow B): cart on the published menu, waiter approval into the table's bill, kitchen screen, sound alert (§10). Pay-first (1b) only on request |
 
 ## 7. Out of scope (MVP)
 
@@ -204,3 +204,12 @@ A guest at a table (tablet or phone) adds dishes from the published menu to a ca
 - **3e-1:** order model, the guest endpoint with server-side pricing, the staff Orders section with accept or reject, and the bill integration (1a). Includes tests, a browser check and axe.
 - **3e-2:** the cart UI on the menu, and order status for the guest.
 - **3e-3 (optional):** kitchen display, sound alerts, and pay-first mode (1b) with automatic refund on reject.
+
+### 3e-3 (2026-10-31): kitchen screen and sound alert
+- **Kitchen screen** (`#/kitchen`, editor and above): accepted orders that are not ready yet, oldest first, in large type.
+  - Each order shows its table, how long it has been waiting (with a text warning after 15 minutes, not color alone), its dishes, quantities and notes.
+  - **Ready ✓** marks it done: `ready_at` and `ready_by`, audited. The waiter's list and the guest's cart then show "Ready".
+  - Refreshes every 5 seconds. The screen stays awake (Screen Wake Lock) where the browser supports it.
+- **Sound alert** (Orders section and kitchen screen): opt-in per device, saved in localStorage. A short tone (Web Audio, no file) when a new order arrives. Browsers only allow sound after a tap, so the toggle is a button.
+- **Migration `0010`:** adds `orders.ready_at` and `orders.ready_by`.
+- **Pay-first (decision 1b) is not built.** The owner chose (a). It needs automatic refunds on reject, so it waits for an explicit request.

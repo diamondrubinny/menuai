@@ -163,6 +163,11 @@ Guests at a table can order dishes from the menu. **A waiter accepts every order
   - **double taps:** a per-order key means a double tap or a retry creates one order;
   - **origin:** posting needs our own origin (the global CSRF check), and the published page's CSP allows `connect-src 'self'` only;
   - **audit:** every accept and reject is audited.
+- **Kitchen screen** (`#/kitchen`, editors; link: Orders → "Open the kitchen screen"):
+  - Shows accepted orders that aren't ready yet, oldest first, in large type, with how long each has waited. After 15 minutes an order is flagged in text and with a thicker border, so color is never the only cue.
+  - **Ready ✓** marks an order done. The waiter's list shows "Ready", and the guest's cart shows "Ready and on its way".
+  - The screen stays awake where the browser supports it.
+- **Sound alert:** an opt-in "Sound for new orders" button, per device, on Orders and on the kitchen screen. It plays a short tone; browsers only allow sound after a tap.
 - **If a printed QR code leaks** and orders start arriving from outside the restaurant, reject them and use **Replace QR code** on the table.
 - ⚖️ Allergen information stays the restaurant's responsibility: the cart makes no claims.
 

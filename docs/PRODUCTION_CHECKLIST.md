@@ -161,7 +161,8 @@ No analytics, pixels or marketing tools, so no consent banner is needed **while 
   - an order from a tablet and from a phone reaches the screen;
   - accepting it adds it to the bill;
   - rejecting it shows the reason to the guest;
-  - the published menu was re-published, or the server restarted, so the cart's script is in place.
+  - the published menu was re-published, or the server restarted, so the cart's script is in place;
+  - if the kitchen uses the kitchen screen, its tablet is signed in as an editor, the sound is turned on there, and the screen stays on.
 - 🧑 Refunds were tried in the provider's sandbox: a full and a partial refund, and Grow's same-day rule. The owner knows that an **unknown** refund must be checked in the provider's dashboard and confirmed, never repeated blindly.
 - 🧑 A payment-terms link is set in Settings, so guests must accept the terms (Grow's review requires it).
 - 🧑 Before going **live** with Grow:

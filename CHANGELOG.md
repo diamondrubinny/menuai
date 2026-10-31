@@ -11,6 +11,7 @@ All notable changes to MenuAI. Versions follow [Semantic Versioning](https://sem
   - Prices are computed on the server from the live published menu. Limits per order and per table, an idempotency key and the Origin check stop tampering and spam.
   - The cart is an accessible dialog (focus kept, Escape, labelled controls, live status) in Hebrew, English and Arabic.
   - Published menus now allow `connect-src 'self'` for the cart; only the hashed runtime script can run.
+  - **Kitchen screen** (`#/kitchen`): accepted orders oldest first in large type, waiting time with a text warning after 15 minutes, **Ready ✓** (shown to the waiter and the guest), and the screen kept awake. An opt-in sound alert for new orders, per device.
 - **Receipts from the payment company** ([docs/PAYMENTS.md](docs/PAYMENTS.md#receipts)):
   - When the provider's invoice module issues a receipt, its number and link are kept. The guest's result page shows **🧾 View receipt**, and the staff screen and CSV show it too.
   - PayPlus reports it in the signed callback. Grow posts it to a per-payment address with a random key; it must match the payment and link to Grow's own domain, and the key is redacted from the logs. MenuAI issues no documents itself.

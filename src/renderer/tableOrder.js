@@ -13,7 +13,7 @@ var ORD_TEXT = {
     add: 'הוספה', addNamed: 'הוספת {name} להזמנה', cart: 'ההזמנה שלי', cartCount: 'ההזמנה שלי, {n} פריטים', close: 'סגירה',
     empty: 'עוד לא נבחרו מנות.', note: 'הערה למטבח (לא חובה)', less: 'פחות', more: 'עוד', remove: 'הסרה', total: 'סה״כ',
     send: 'שליחת ההזמנה', sending: 'שולחים…', sent: 'ההזמנה נשלחה. מלצר יאשר אותה בקרוב.', noPay: 'אין חיוב עכשיו: ההזמנה מתווספת לחשבון אחרי אישור.',
-    status_new: 'ממתינה לאישור', status_accepted: 'אושרה ונוספה לחשבון', status_rejected: 'לא אושרה', yours: 'ההזמנות האחרונות',
+    status_new: 'ממתינה לאישור', status_accepted: 'אושרה ונוספה לחשבון', status_ready: 'מוכנה ובדרך אליכם', status_rejected: 'לא אושרה', yours: 'ההזמנות האחרונות',
     err_unavailable_item: 'אחת המנות כבר לא זמינה. הסירו אותה ונסו שוב.', err_too_many_orders: 'יש כבר כמה הזמנות שממתינות למלצר. נסו שוב בעוד רגע.',
     err_ordering_unavailable: 'אי אפשר להזמין מהתפריט כרגע. אפשר להזמין דרך הצוות.', err_generic: 'ההזמנה לא נשלחה. נסו שוב.', noPersonal: 'בלי פרטים אישיים, בבקשה.',
   },
@@ -21,7 +21,7 @@ var ORD_TEXT = {
     add: 'Add', addNamed: 'Add {name} to the order', cart: 'My order', cartCount: 'My order, {n} items', close: 'Close',
     empty: 'No dishes chosen yet.', note: 'Note for the kitchen (optional)', less: 'Less', more: 'More', remove: 'Remove', total: 'Total',
     send: 'Send the order', sending: 'Sending…', sent: 'Order sent. A waiter will confirm it shortly.', noPay: 'Nothing is charged now: the order joins the bill once accepted.',
-    status_new: 'Waiting for the waiter', status_accepted: 'Accepted and added to the bill', status_rejected: 'Not accepted', yours: 'Your recent orders',
+    status_new: 'Waiting for the waiter', status_accepted: 'Accepted and added to the bill', status_ready: 'Ready and on its way', status_rejected: 'Not accepted', yours: 'Your recent orders',
     err_unavailable_item: 'One of the dishes is no longer available. Remove it and try again.', err_too_many_orders: 'Several orders are already waiting for the waiter. Try again in a moment.',
     err_ordering_unavailable: 'Ordering from the menu is not available right now. Please order with the staff.', err_generic: 'The order was not sent. Please try again.', noPersonal: 'No personal details, please.',
   },
@@ -29,7 +29,7 @@ var ORD_TEXT = {
     add: 'إضافة', addNamed: 'إضافة {name} إلى الطلب', cart: 'طلبي', cartCount: 'طلبي، {n} أصناف', close: 'إغلاق',
     empty: 'لم يتم اختيار أي طبق بعد.', note: 'ملاحظة للمطبخ (اختياري)', less: 'أقل', more: 'أكثر', remove: 'إزالة', total: 'المجموع',
     send: 'إرسال الطلب', sending: 'جارٍ الإرسال…', sent: 'تم إرسال الطلب. سيؤكده النادل قريبًا.', noPay: 'لا يتم الدفع الآن: يُضاف الطلب إلى الحساب بعد قبوله.',
-    status_new: 'بانتظار النادل', status_accepted: 'تم القبول والإضافة إلى الحساب', status_rejected: 'لم يُقبل', yours: 'طلباتك الأخيرة',
+    status_new: 'بانتظار النادل', status_accepted: 'تم القبول والإضافة إلى الحساب', status_ready: 'جاهز وفي الطريق إليكم', status_rejected: 'لم يُقبل', yours: 'طلباتك الأخيرة',
     err_unavailable_item: 'أحد الأطباق لم يعد متوفرًا. أزيلوه وحاولوا مجددًا.', err_too_many_orders: 'هناك عدة طلبات بانتظار النادل. حاولوا بعد قليل.',
     err_ordering_unavailable: 'الطلب من القائمة غير متاح حاليًا. يمكن الطلب عبر الطاقم.', err_generic: 'لم يُرسل الطلب. حاولوا مجددًا.', noPersonal: 'من دون تفاصيل شخصية من فضلكم.',
   },
@@ -283,7 +283,8 @@ export function initTableOrder(doc, code, opts) {
       dialog.appendChild(el('h3', 'ma-cart-sub', text('yours')));
       var sent = el('ul', 'ma-cart-orders');
       orders.slice(0, 5).forEach(function (o) {
-        var li = el('li', 'ma-cart-order ma-cart-order-' + o.status, money(o.totalAgorot) + ' · ' + text('status_' + o.status));
+        var state = o.status === 'accepted' && o.ready ? 'ready' : o.status;
+        var li = el('li', 'ma-cart-order ma-cart-order-' + state, money(o.totalAgorot) + ' · ' + text('status_' + state));
         if (o.status === 'rejected' && o.rejectReason) li.appendChild(el('span', 'ma-cart-reason', ' (' + o.rejectReason + ')'));
         sent.appendChild(li);
       });
@@ -427,7 +428,12 @@ export function initTableOrder(doc, code, opts) {
     items = data && data.items && typeof data.items === 'object' ? data.items : {};
     orders = data && Object.prototype.toString.call(data.orders) === '[object Array]' ? data.orders : [];
     var waiting = false;
-    for (var i = 0; i < orders.length; i++) if (orders[i].status === 'new') waiting = true;
+    // Keep asking while an order waits for the waiter, or (for 90 minutes) for the kitchen.
+    for (var i = 0; i < orders.length; i++) {
+      var o = orders[i];
+      var recent = Date.now() - Date.parse(o.createdAt) < 90 * 60000;
+      if (o.status === 'new' || (o.status === 'accepted' && !o.ready && recent)) waiting = true;
+    }
     if (pollTimer) win.clearTimeout(pollTimer);
     pollTimer = waiting ? win.setTimeout(refresh, ORD_POLL_MS) : null;
     changed(false);

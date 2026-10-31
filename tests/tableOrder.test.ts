@@ -151,4 +151,16 @@ describe('ordering from the menu (cart)', () => {
     // A dish the menu no longer offers is dropped.
     expect(cartButton().getAttribute('aria-label')).toBe('ההזמנה שלי, 2 פריטים');
   });
+
+  it('shows when the kitchen has the order ready', async () => {
+    const now = new Date().toISOString();
+    const s = server({ orders: [{ id: 'o1', status: 'accepted', ready: true, totalAgorot: 8500, rejectReason: null, createdAt: now }, { id: 'o2', status: 'accepted', ready: false, totalAgorot: 3800, rejectReason: null, createdAt: now }] });
+    await initTableOrder(document, CODE, { fetch: s.fetch });
+    // Sent orders keep the cart button visible even with nothing new in it.
+    expect(cartButton().hidden).toBe(false);
+    cartButton().click();
+    const sent = [...dialog().querySelectorAll('.ma-cart-order')].map((li) => li.textContent);
+    expect(sent[0]).toContain('מוכנה ובדרך אליכם');
+    expect(sent[1]).toContain('אושרה ונוספה לחשבון');
+  });
 });

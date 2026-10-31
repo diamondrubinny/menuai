@@ -280,4 +280,13 @@ CREATE TABLE order_lines (
 );
 `,
   },
+  {
+    id: '0010_order_ready',
+    sql: `
+-- The kitchen marks an accepted order as ready (kitchen screen).
+ALTER TABLE orders ADD COLUMN ready_at timestamptz;
+ALTER TABLE orders ADD COLUMN ready_by uuid REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX orders_kitchen ON orders (decided_at) WHERE status = 'accepted' AND ready_at IS NULL;
+`,
+  },
 ];

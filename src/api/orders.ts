@@ -21,14 +21,17 @@ export interface StaffOrder {
   rejectReason: string | null;
   createdAt: string;
   decidedAt: string | null;
+  /** The kitchen marked it ready. */
+  readyAt: string | null;
   tableId: string;
   tableLabel: string;
   billId: string | null;
   lines: OrderLine[];
 }
 
-export const listOrders = (view: 'open' | 'recent') => api<{ enabled: boolean; orders: StaffOrder[] }>(`/orders?view=${view}`);
+export const listOrders = (view: 'open' | 'recent' | 'kitchen') => api<{ enabled: boolean; orders: StaffOrder[] }>(`/orders?view=${view}`);
 export const acceptOrder = (id: string) => api<{ ok: true; billId: string }>(`/orders/${id}/accept`, { method: 'POST' });
+export const markReady = (id: string) => api<{ ok: true }>(`/orders/${id}/ready`, { method: 'POST' });
 export const rejectOrder = (id: string, reason: string) => api<{ ok: true }>(`/orders/${id}/reject`, { method: 'POST', body: { reason } });
 /** Owner only. */
 export const setOrdering = (enabled: boolean) => api<{ ok: true }>('/orders/settings', { method: 'PUT', body: { enabled } });

@@ -137,6 +137,8 @@ export async function liveMenu(db: SqlClient, menuId: string | null): Promise<{ 
 export interface GuestOrderStatus {
   id: string;
   status: 'new' | 'accepted' | 'rejected';
+  /** The kitchen marked it ready. */
+  ready: boolean;
   totalAgorot: number;
   rejectReason: string | null;
   createdAt: Date;
@@ -144,12 +146,12 @@ export interface GuestOrderStatus {
 
 /** This table's orders from the last few hours (what the guest's cart shows as sent). */
 export async function recentTableOrders(db: SqlClient, tableId: string): Promise<GuestOrderStatus[]> {
-  const rows = await db.query<{ id: string; status: GuestOrderStatus['status']; total_agorot: number; reject_reason: string | null; created_at: Date }>(
-    `SELECT id, status, total_agorot, reject_reason, created_at FROM orders
+  const rows = await db.query<{ id: string; status: GuestOrderStatus['status']; total_agorot: number; reject_reason: string | null; created_at: Date; ready_at: Date | null }>(
+    `SELECT id, status, total_agorot, reject_reason, created_at, ready_at FROM orders
      WHERE table_id = $1 AND created_at > now() - interval '6 hours' ORDER BY created_at DESC LIMIT 10`,
     [tableId],
   );
-  return rows.map((r) => ({ id: r.id, status: r.status, totalAgorot: r.total_agorot, rejectReason: r.reject_reason, createdAt: r.created_at }));
+  return rows.map((r) => ({ id: r.id, status: r.status, ready: r.ready_at !== null, totalAgorot: r.total_agorot, rejectReason: r.reject_reason, createdAt: r.created_at }));
 }
 
 /** Records a guest's order (status "new"). Idempotent per table + key. */
@@ -232,4 +234,18 @@ export async function rejectOrder(db: SqlClient, orderId: string, userId: string
     throw conflict('order_not_new');
   }
   await audit(db, { userId, action: 'order.reject', targetType: 'order', targetId: orderId });
+}
+
+/** The kitchen finished an accepted order. */
+export async function markReady(db: SqlClient, orderId: string, userId: string): Promise<void> {
+  const [row] = await db.query<{ id: string }>(
+    "UPDATE orders SET ready_at = now(), ready_by = $2 WHERE id = $1 AND status = 'accepted' AND ready_at IS NULL RETURNING id",
+    [orderId, userId],
+  );
+  if (!row) {
+    const [exists] = await db.query('SELECT 1 FROM orders WHERE id = $1', [orderId]);
+    if (!exists) throw notFound();
+    throw conflict('order_not_accepted');
+  }
+  await audit(db, { userId, action: 'order.ready', targetType: 'order', targetId: orderId });
 }

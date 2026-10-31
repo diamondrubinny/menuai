@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { acceptOrder, listOrders, rejectOrder, setOrdering, type StaffOrder } from '../api/orders';
 import { formatAgorot } from '../api/payments';
+import { playChime, saveSoundPreference, soundPreference } from '../core/chime';
 import { useFeedback } from '../store/feedbackStore';
 import { useT, type UiKey } from '../i18n/ui';
 
@@ -31,6 +32,7 @@ export function OrdersSection({ isOwner }: { isOwner: boolean }) {
   const [rejecting, setRejecting] = useState<{ id: string; reason: string } | null>(null);
   // Announce only when the number of waiting orders goes up (not on every refresh).
   const [announce, setAnnounce] = useState('');
+  const [sound, setSound] = useState(soundPreference);
   const waiting = useRef<number | null>(null);
   const money = (a: number) => formatAgorot(a, lang);
 
@@ -41,7 +43,10 @@ export function OrdersSection({ isOwner }: { isOwner: boolean }) {
     setOrders(r.data.orders);
     setEnabled(r.data.enabled);
     const n = r.data.orders.filter((o) => o.status === 'new').length;
-    if (view === 'open' && waiting.current !== null && n > waiting.current) setAnnounce(t('ordNewCount', { n }));
+    if (view === 'open' && waiting.current !== null && n > waiting.current) {
+      setAnnounce(t('ordNewCount', { n }));
+      if (soundPreference()) playChime();
+    }
     if (view === 'open') waiting.current = n;
   }, [view, t]);
 
@@ -52,6 +57,13 @@ export function OrdersSection({ isOwner }: { isOwner: boolean }) {
     }, REFRESH_MS);
     return () => clearInterval(timer);
   }, [load]);
+
+  const toggleSound = () => {
+    const next = !sound;
+    setSound(next);
+    saveSoundPreference(next);
+    if (next) playChime(); // also unlocks audio in the browser (it needs a tap first)
+  };
 
   const toggle = async (next: boolean) => {
     setBusy('settings');
@@ -102,6 +114,10 @@ export function OrdersSection({ isOwner }: { isOwner: boolean }) {
       <div className="pay-toolbar">
         <h3 id={`${id}-list`}>{t(view === 'open' ? 'ordOpen' : 'ordRecent')}</h3>
         <div className="button-row">
+          <button type="button" className={`btn btn-sm${sound ? ' btn-primary' : ''}`} aria-pressed={sound} onClick={toggleSound}>
+            <span aria-hidden="true">{sound ? '🔔' : '🔕'}</span> {t('ordSound')}
+          </button>
+          <a className="btn btn-sm" href="#/kitchen">{t('ordKitchenLink')}</a>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => setView(view === 'open' ? 'recent' : 'open')}>
             {t(view === 'open' ? 'ordShowRecent' : 'ordShowOpen')}
           </button>
@@ -123,6 +139,7 @@ export function OrdersSection({ isOwner }: { isOwner: boolean }) {
                 <span className={`team-badge${o.status === 'rejected' ? ' is-off' : ''}`}>
                   {o.status === 'new' && <span aria-hidden="true">● </span>}{t(`ordStatus_${o.status}` as UiKey)}
                 </span>
+                {o.readyAt && <>{' '}<span className="team-badge">✓ {t('ordReady')}</span></>}
               </span>
             </div>
             <ul className="ord-lines">
