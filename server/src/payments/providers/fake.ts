@@ -4,7 +4,7 @@
  * Powered by MenuAI. This notice must be kept (see LICENSE and NOTICE).
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import type { Notification, PaymentProvider, ProviderRef, Session, SessionRequest, VerifiedStatus } from './types';
+import { ProviderError, type Notification, type PaymentProvider, type ProviderRef, type RefundRequest, type RefundResult, type Session, type SessionRequest, type VerifiedStatus } from './types';
 
 /**
  * Demo provider for development, tests and demos: a page on our own server with "Approve" and
@@ -44,6 +44,14 @@ export function fakeProvider(publicBase: string): PaymentProvider {
       if (ref.outcome === 'paid') return { status: 'paid', amountAgorot: Number(ref.amount), transactionRef: ref.txn };
       if (ref.outcome === 'declined') return { status: 'failed' };
       return { status: 'pending' };
+    },
+    refundPolicy: { partialSameDay: true },
+    refundable(ref: ProviderRef): boolean {
+      return ref.outcome === 'paid';
+    },
+    async refund(ref: ProviderRef, req: RefundRequest): Promise<RefundResult> {
+      if (ref.outcome !== 'paid') throw new ProviderError('fake refund: not paid', false);
+      return { refundRef: `DEMO-R-${req.refundId.slice(0, 8).toUpperCase()}` };
     },
   };
 }

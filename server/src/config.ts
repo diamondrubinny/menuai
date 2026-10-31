@@ -38,6 +38,27 @@ const configSchema = z
       .optional(),
     /** Development only: the built-in demo provider that takes no real money. Refused in production. */
     PAYMENTS_ALLOW_FAKE: bool.default(false),
+    /**
+     * Providers allowed in live mode (comma-separated, e.g. `grow,payplus`). Add one only after the full
+     * flow passed in that provider's sandbox (docs/PAYMENTS.md). Empty: test mode only.
+     */
+    PAYMENTS_LIVE_PROVIDERS: z
+      .string()
+      .default('')
+      .transform((v) => v.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean))
+      .pipe(z.array(z.enum(['grow', 'payplus']))),
+    /** The business's time zone: payment reports are grouped by its calendar days. */
+    BUSINESS_TIMEZONE: z
+      .string()
+      .refine((tz) => {
+        try {
+          new Intl.DateTimeFormat('en', { timeZone: tz });
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'must be an IANA time zone such as Asia/Jerusalem')
+      .default('Asia/Jerusalem'),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV === 'production' && !c.PUBLIC_URL.startsWith('https://')) {
