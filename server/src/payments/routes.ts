@@ -8,9 +8,10 @@ import { z } from 'zod';
 import { requireRole } from '../auth/guard';
 import { audit } from '../auth/service';
 import { badRequest, conflict, HttpError, notFound } from '../errors';
-import { availableProviders } from './providers';
+import { availableProviders, modeAllowed } from './providers';
 import { PROVIDER_IDS } from './providers/types';
-import { activeProvider, BILL_SELECT, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
+import { REFUND_COLUMNS, refundChannel, refundDto, type RefundRow } from './refunds';
+import { activeProvider, BILL_SELECT, configuredProvider, loadSettings, newTableToken, releaseStaleCheckouts, saveSettings, type BillRow } from './service';
 
 const idSchema = z.uuid();
 const amountSchema = z.number().int().min(100).max(10_000_000);
@@ -21,6 +22,7 @@ const noteSchema = z.string().trim().max(200);
 export const CREDENTIAL_FIELDS: Record<(typeof PROVIDER_IDS)[number], string[]> = {
   fake: [],
   grow: ['userId', 'pageCode'],
+  payplus: ['apiKey', 'secretKey', 'paymentPageUid'],
 };
 
 function parseId(req: FastifyRequest): string {
@@ -64,7 +66,8 @@ export async function paymentRoutes(app: FastifyInstance) {
     return {
       configured: Boolean(config.PAYMENTS_KEY),
       providers,
-      enabled: Boolean(settings?.enabled && providers.includes(settings.provider)),
+      // On only when guests can really pay: enabled, available here, allowed mode, credentials present.
+      enabled: Boolean(settings?.enabled && (await activeProvider(db, config, app.deps.paymentHttp))),
       provider: settings?.provider ?? null,
       mode: settings?.mode ?? null,
     };
@@ -79,10 +82,11 @@ export async function paymentRoutes(app: FastifyInstance) {
         provider: s.provider,
         mode: s.mode,
         tipPercents: s.tipPercents,
+        termsUrl: s.termsUrl,
         hasCredentials: s.credentials !== null,
         updatedAt: s.updatedAt,
       },
-      providers: availableProviders(config).map((id) => ({ id, credentialFields: CREDENTIAL_FIELDS[id] })),
+      providers: availableProviders(config).map((id) => ({ id, credentialFields: CREDENTIAL_FIELDS[id], liveAllowed: modeAllowed(config, id, 'live') })),
     };
   });
 
@@ -94,6 +98,7 @@ export async function paymentRoutes(app: FastifyInstance) {
         provider: z.enum(PROVIDER_IDS),
         mode: z.enum(['test', 'live']),
         tipPercents: z.array(z.number().int().min(1).max(50)).max(5),
+        termsUrl: z.url({ protocol: /^https$/ }).regex(/^https:\/\/[^/]/).max(500).nullable().default(null),
         credentials: z.record(z.string().regex(/^[A-Za-z]{1,40}$/), z.string().trim().min(1).max(200)).nullable().optional(),
       })
       .strict()
@@ -102,6 +107,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const next = body.data;
     if (!availableProviders(config).includes(next.provider)) throw badRequest('provider_unavailable');
     if (next.provider === 'fake' && next.mode === 'live') throw badRequest('demo_is_test_only');
+    if (!modeAllowed(config, next.provider, next.mode)) throw badRequest('live_not_enabled');
     if (next.credentials) {
       const fields = CREDENTIAL_FIELDS[next.provider];
       const keys = Object.keys(next.credentials);
@@ -110,6 +116,14 @@ export async function paymentRoutes(app: FastifyInstance) {
     const current = await loadSettings(db, config);
     const willHave = next.credentials === undefined ? current.credentials !== null && current.provider === next.provider : next.credentials !== null;
     if (next.enabled && CREDENTIAL_FIELDS[next.provider].length > 0 && !willHave) throw badRequest('credentials_required');
+    // A checkout in progress is verified with the provider, mode and account it started with: don't
+    // switch those under it (a charge could otherwise never be confirmed and be lost).
+    const switching = current.provider !== next.provider || current.mode !== next.mode || next.credentials !== undefined;
+    if (switching) {
+      await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp));
+      const [busy] = await db.query("SELECT 1 FROM payments WHERE status = 'pending' LIMIT 1");
+      if (busy) throw conflict('payments_in_progress');
+    }
     const tipPercents = [...new Set(next.tipPercents)].sort((a, b) => a - b);
     await saveSettings(db, config, req.user!.id, {
       ...next,
@@ -204,11 +218,15 @@ export async function paymentRoutes(app: FastifyInstance) {
     const q = z.object({ view: z.enum(['open', 'recent']).default('open') }).safeParse(req.query);
     if (!q.success) throw badRequest();
     // Abandoned checkouts stop showing as "being paid" (checked with the provider first).
-    await releaseStaleCheckouts(db, await activeProvider(db, config));
-    // "Open" also lists recent bills with money that needs a refund or review, so staff can't miss them.
+    const configuredNow = await configuredProvider(db, config, app.deps.paymentHttp);
+    await releaseStaleCheckouts(db, configuredNow);
+    // "Open" also lists bills with money that still needs a refund or review, or a refund whose outcome
+    // must be confirmed, so staff can't miss them.
     const where =
       q.data.view === 'open'
-        ? `(b.status = 'open' OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.paid_at > now() - interval '2 days'))`
+        ? `(b.status = 'open'
+            OR EXISTS (SELECT 1 FROM payments r WHERE r.bill_id = b.id AND r.review_reason IS NOT NULL AND r.review_resolved_at IS NULL)
+            OR EXISTS (SELECT 1 FROM payments r JOIN payment_refunds f ON f.payment_id = r.id WHERE r.bill_id = b.id AND f.status IN ('pending', 'unknown')))`
         : "b.opened_at > now() - interval '2 days'";
     const bills = await db.query<BillRow & { table_label: string }>(
       `SELECT x.*, t.label AS table_label FROM (${BILL_SELECT} WHERE ${where} GROUP BY b.id) x
@@ -216,20 +234,29 @@ export async function paymentRoutes(app: FastifyInstance) {
     );
     const ids = bills.map((b) => b.id);
     const payments = ids.length
-      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null }>(
-          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, provider, mode, provider_txn, created_at, paid_at
+      ? await db.query<{ id: string; bill_id: string; share_agorot: number; tip_agorot: number; status: string; review_reason: string | null; review_resolved_at: Date | null; review_note: string | null; provider: string; mode: string; provider_txn: string | null; created_at: Date; paid_at: Date | null; receipt_number: string | null; receipt_url: string | null }>(
+          `SELECT id, bill_id, share_agorot, tip_agorot, status, review_reason, review_resolved_at, review_note, provider, mode, provider_txn, created_at, paid_at,
+             receipt_number, receipt_url
            FROM payments WHERE bill_id = ANY($1::uuid[]) ORDER BY created_at`,
           [ids],
         )
       : [];
+    const paidIds = payments.filter((p) => p.status === 'paid').map((p) => p.id);
+    const refunds = paidIds.length
+      ? await db.query<RefundRow>(`SELECT ${REFUND_COLUMNS} FROM payment_refunds WHERE payment_id = ANY($1::uuid[]) ORDER BY created_at`, [paidIds])
+      : [];
     return {
+      // Which payments the owner can refund from here (null: refund in the provider's dashboard).
+      refunds: refundChannel(configuredNow),
       bills: bills.map((b) => ({
         ...billDto(b),
         payments: payments
           .filter((p) => p.bill_id === b.id)
           .map((p) => ({
-            id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, provider: p.provider,
+            id: p.id, shareAgorot: p.share_agorot, tipAgorot: p.tip_agorot, status: p.status, reviewReason: p.review_reason, reviewResolvedAt: p.review_resolved_at, reviewNote: p.review_note, provider: p.provider,
             mode: p.mode, transactionRef: p.provider_txn, createdAt: p.created_at, paidAt: p.paid_at,
+            receiptNumber: p.receipt_number, receiptUrl: p.receipt_url,
+            refunds: refunds.filter((r) => r.payment_id === p.id).map(refundDto),
           })),
       })),
     };
@@ -259,7 +286,7 @@ export async function paymentRoutes(app: FastifyInstance) {
     const id = parseId(req);
     const body = z.object({ amountAgorot: amountSchema.optional(), note: noteSchema.optional() }).strict().safeParse(req.body);
     if (!body.success) throw badRequest();
-    await releaseStaleCheckouts(db, await activeProvider(db, config), id);
+    await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp), id);
     await db.transaction(async (tx) => {
       const [locked] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);
       if (!locked) throw notFound();
@@ -297,7 +324,7 @@ export async function paymentRoutes(app: FastifyInstance) {
   app.post('/api/payments/bills/:id/cancel', { preHandler: editor }, async (req) => {
     configured();
     const id = parseId(req);
-    await releaseStaleCheckouts(db, await activeProvider(db, config), id);
+    await releaseStaleCheckouts(db, await configuredProvider(db, config, app.deps.paymentHttp), id);
     await db.transaction(async (tx) => {
       // Lock the bill: a checkout starting right now waits, then sees the bill is no longer open.
       const [bill] = await tx.query<{ status: string }>('SELECT status FROM bills WHERE id = $1 FOR UPDATE', [id]);

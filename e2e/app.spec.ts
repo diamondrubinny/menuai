@@ -179,3 +179,11 @@ test('pay-at-the-table page explains when no server is installed and is accessib
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(results.violations.map((v) => v.id)).toEqual([]);
 });
+
+test('kitchen screen explains when no server is installed and is accessible', async ({ page }) => {
+  await page.goto('/#/kitchen');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kitchen');
+  await expect(page.getByRole('main').getByRole('status')).toContainText('Cloud saving needs the MenuAI server');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+});

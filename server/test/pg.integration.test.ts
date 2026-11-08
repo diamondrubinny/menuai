@@ -147,6 +147,18 @@ describe.skipIf(!url)('guests paying at once (real PostgreSQL, concurrent connec
       expect(paid!.status).toBe('paid');
       const audits = await db.query("SELECT 1 FROM audit_log WHERE action = 'payment.paid' AND target_id = $1", [paymentId]);
       expect(audits).toHaveLength(1);
+
+      // The owner double-clicks "Refund" (or two owners at once): the money goes back exactly once.
+      const { refundPayment } = await import('../src/payments/refunds');
+      const { configuredProvider } = await import('../src/payments/service');
+      const [owner] = await db.query<{ id: string }>("INSERT INTO users (email, role) VALUES ($1, 'owner') RETURNING id", [`race-${Date.now()}@example.com`]);
+      const active = await configuredProvider(db, app.deps.config);
+      const refunds = await Promise.allSettled(
+        Array.from({ length: 5 }, () => refundPayment(db, active, { paymentId, amountAgorot: 10000, note: '', userId: owner!.id, timezone: 'Asia/Jerusalem' })),
+      );
+      expect(refunds.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const [sum] = await db.query<{ s: number }>("SELECT COALESCE(sum(amount_agorot), 0)::int AS s FROM payment_refunds WHERE payment_id = $1 AND status = 'succeeded'", [paymentId]);
+      expect(sum!.s).toBe(10000);
     } finally {
       await app.close();
       await db.close();

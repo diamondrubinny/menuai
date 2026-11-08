@@ -45,9 +45,10 @@ map $remote_addr $menuai_ip {
     ~^(?P<b>[0-9a-fA-F]*:[0-9a-fA-F]*:[0-9a-fA-F]*):  $b::;
     default                                 -;
 }
-# Table pages (/t/<token>/…) carry the table's key in the path: it never reaches the log.
+# Table pages (/t/<token>/…) and receipt callbacks carry secret keys in the path: they never reach the log.
 map $uri $menuai_uri {
     ~^/t/[^/]+(?P<rest>/.*)?$              /t/[table]$rest;
+    ~^/api/payments/receipt/(?P<prov>[^/]+)/   /api/payments/receipt/$prov/[redacted];
     default                                 $uri;
 }
 log_format menuai_privacy '$menuai_ip [$time_local] "$request_method $menuai_uri $server_protocol" $status $body_bytes_sent';

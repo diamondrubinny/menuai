@@ -14,6 +14,7 @@ import { NotFound } from './pages/NotFound';
 import { LoginPage } from './pages/LoginPage';
 import { TeamPage } from './pages/TeamPage';
 import { PaymentsPage } from './pages/PaymentsPage';
+import { KitchenPage } from './pages/KitchenPage';
 
 export function App() {
   const route = useRoute();
@@ -49,6 +50,9 @@ export function App() {
       break;
     case '/payments':
       page = <PaymentsPage />;
+      break;
+    case '/kitchen':
+      page = <KitchenPage />;
       break;
     default:
       page = <NotFound />;
